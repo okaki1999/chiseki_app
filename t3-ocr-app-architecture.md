@@ -5,9 +5,9 @@
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   フロントエンド   │────│   バックエンド     │────│   データベース    │
-│   Next.js 15     │    │   tRPC + Next.js  │    │   PostgreSQL    │
-│   Tailwind CSS   │    │   Prisma          │    │   (Docker)      │
-│   React Hook Form│    │   Zod validation  │    │                 │
+│   Next.js 15     │    │   tRPC + Next.js  │    │   Supabase      │
+│   Tailwind CSS   │    │   Prisma          │    │   PostgreSQL    │
+│   React Hook Form│    │   Zod validation  │    │   (Cloud)       │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                        │                        │
          │              ┌──────────────────┐               │
@@ -82,12 +82,13 @@ model Post {
 - [x] T3 Stack基本セットアップ
 - [x] Next.js 15 + App Router
 - [x] tRPC設定
-- [x] Prisma + PostgreSQL
+- [x] Prisma + Supabase PostgreSQL
 - [x] 基本的なPost CRUD
 - [x] データベース接続
+- [x] 環境変数設定（.envファイル）
 
 ### 🔄 進行中
-- [ ] 環境変数設定（.envファイル作成）
+- [ ] アプリケーション起動テスト
 
 ### 📋 未実装
 - [ ] 地積測量図専用スキーマ
@@ -129,8 +130,8 @@ model SurveyMap {
 
 ## 💡 現在の課題と解決策
 
-### 課題1: 環境変数未設定
-**解決策**: `.env` ファイルを作成し、`DATABASE_URL` を設定
+### 課題1: アプリケーション起動エラーの解決
+**解決策**: データベース接続を確認し、必要に応じて設定を調整
 
 ### 課題2: 基本的なスキーマのみ
 **解決策**: 地積測量図専用のスキーマに拡張
