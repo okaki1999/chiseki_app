@@ -18,14 +18,15 @@ export default function HistoryPage() {
   });
   const [exportingId, setExportingId] = useState<string | null>(null);
 
-  const handleExportDXF = async (
+  const handleExportFile = async (
     id: string,
     extractedData: unknown,
     locationId: string,
+    format: "dxf" | "csv" | "xlsx",
   ) => {
-    setExportingId(id);
+    setExportingId(`${id}-${format}`);
     try {
-      const res = await fetch("/api/export-dxf", {
+      const res = await fetch(`/api/export-${format}`, {
         method: "POST",
         headers: {
           ...(Object.fromEntries(await getAuthHeaders()) as Record<
@@ -40,7 +41,7 @@ export default function HistoryPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${locationId}.dxf`;
+      a.download = `${locationId}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -219,13 +220,14 @@ export default function HistoryPage() {
                   {/* DXF出力 */}
                   <button
                     onClick={() =>
-                      handleExportDXF(
+                      handleExportFile(
                         record.id,
                         record.extractedData,
                         data.survey_metadata.location_id,
+                        "dxf",
                       )
                     }
-                    disabled={exportingId === record.id}
+                    disabled={exportingId === `${record.id}-dxf`}
                     className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                     title="DXFを出力"
                   >
@@ -242,6 +244,38 @@ export default function HistoryPage() {
                         d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                       />
                     </svg>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleExportFile(
+                        record.id,
+                        record.extractedData,
+                        data.survey_metadata.location_id,
+                        "csv",
+                      )
+                    }
+                    disabled={exportingId === `${record.id}-csv`}
+                    className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    title="CSVを出力"
+                  >
+                    CSV
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleExportFile(
+                        record.id,
+                        record.extractedData,
+                        data.survey_metadata.location_id,
+                        "xlsx",
+                      )
+                    }
+                    disabled={exportingId === `${record.id}-xlsx`}
+                    className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    title="Excelを出力"
+                  >
+                    XLSX
                   </button>
 
                   {/* 削除 */}

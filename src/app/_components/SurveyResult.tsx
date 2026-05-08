@@ -6,6 +6,12 @@ import maplibregl, { type GeoJSONSource } from "maplibre-gl";
 import proj4 from "proj4";
 import { getAuthHeaders } from "~/lib/auth-headers";
 import { type SurveyData, type Coordinate } from "~/lib/dxf";
+import {
+  getAreaChecks,
+  getIssueCounts,
+  getSurveyIssues,
+  type SurveyIssue,
+} from "~/lib/survey-validation";
 
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
@@ -144,6 +150,139 @@ function CoordTableEdit({
   );
 }
 
+function issueStyle(level: SurveyIssue["level"]) {
+  if (level === "error") {
+    return {
+      label: "エラー",
+      badge: "bg-red-100 text-red-700",
+      row: "border-red-100 bg-red-50",
+    };
+  }
+  if (level === "warning") {
+    return {
+      label: "警告",
+      badge: "bg-amber-100 text-amber-700",
+      row: "border-amber-100 bg-amber-50",
+    };
+  }
+  return {
+    label: "情報",
+    badge: "bg-blue-100 text-blue-700",
+    row: "border-blue-100 bg-blue-50",
+  };
+}
+
+function ValidationSummary({ data }: { data: SurveyData }) {
+  const areaChecks = getAreaChecks(data);
+  const issues = getSurveyIssues(data);
+  const counts = getIssueCounts(issues);
+
+  return (
+    <section className="rounded-xl bg-white p-6 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          検算・要確認
+        </h2>
+        <div className="flex flex-wrap gap-2 text-xs font-medium">
+          <span className="rounded-full bg-red-50 px-3 py-1 text-red-700">
+            エラー {counts.error}
+          </span>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+            警告 {counts.warning}
+          </span>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+            情報 {counts.info}
+          </span>
+        </div>
+      </div>
+
+      <div className="mb-5 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-gray-400">
+              <th className="pr-4 pb-2 font-normal">筆ID</th>
+              <th className="pr-4 pb-2 text-right font-normal">記載面積</th>
+              <th className="pr-4 pb-2 text-right font-normal">座標計算面積</th>
+              <th className="pr-4 pb-2 text-right font-normal">差分</th>
+              <th className="pb-2 font-normal">判定</th>
+            </tr>
+          </thead>
+          <tbody>
+            {areaChecks.map((check) => (
+              <tr key={check.parcelId} className="border-b last:border-0">
+                <td className="py-2 pr-4 font-semibold text-gray-700">
+                  {check.parcelId}
+                </td>
+                <td className="py-2 pr-4 text-right font-mono text-gray-600">
+                  {check.recordedArea.toFixed(2)}㎡
+                </td>
+                <td className="py-2 pr-4 text-right font-mono text-gray-600">
+                  {check.calculatedArea.toFixed(2)}㎡
+                </td>
+                <td
+                  className={`py-2 pr-4 text-right font-mono ${
+                    check.status === "ok" ? "text-gray-600" : "text-amber-700"
+                  }`}
+                >
+                  {check.difference >= 0 ? "+" : ""}
+                  {check.difference.toFixed(3)}㎡
+                </td>
+                <td className="py-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      check.status === "ok"
+                        ? "bg-green-50 text-green-700"
+                        : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {check.status === "ok" ? "OK" : "要確認"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {issues.length === 0 ? (
+        <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700">
+          検出された問題はありません。
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {issues.map((issue, index) => {
+            const style = issueStyle(issue.level);
+            return (
+              <div
+                key={`${issue.level}-${issue.title}-${index}`}
+                className={`rounded-lg border p-3 ${style.row}`}
+              >
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${style.badge}`}
+                  >
+                    {style.label}
+                  </span>
+                  {issue.parcelId && (
+                    <span className="text-xs font-medium text-gray-500">
+                      {issue.parcelId}
+                      {issue.point ? ` / ${issue.point}` : ""}
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold text-gray-800">
+                    {issue.title}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">{issue.message}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 const PREVIEW_COLORS = [
   { stroke: "#2563eb", fill: "#dbeafe" },
   { stroke: "#16a34a", fill: "#dcfce7" },
@@ -210,9 +349,7 @@ const toHalfWidthDigits = (value: string) =>
 const inferCoordinateSystem = (value?: string) => {
   if (!value) return undefined;
   const normalized = toHalfWidthDigits(value).toUpperCase();
-  const digitMatch = /(?:第)?\s*(1[0-9]|[1-9])\s*(?:系|KEI)?/.exec(
-    normalized,
-  );
+  const digitMatch = /(?:第)?\s*(1[0-9]|[1-9])\s*(?:系|KEI)?/.exec(normalized);
   const digit = digitMatch?.[1] ? Number(digitMatch[1]) : undefined;
   if (digit && digit >= 1 && digit <= 19) return digit;
 
@@ -659,20 +796,25 @@ const isPdfUrl = (url: string) =>
 export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<SurveyData>(result);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"dxf" | "csv" | "xlsx" | null>(
+    null,
+  );
 
   const displayData = editMode ? editData : result;
   const totalArea = displayData.parcels
     .reduce((sum, p) => sum + p.area_m2, 0)
     .toFixed(2);
 
-  const handleExportDXF = async () => {
-    setExporting(true);
+  const handleExport = async (format: "dxf" | "csv" | "xlsx") => {
+    setExporting(format);
     try {
-      const res = await fetch("/api/export-dxf", {
+      const res = await fetch(`/api/export-${format}`, {
         method: "POST",
         headers: {
-          ...(Object.fromEntries(await getAuthHeaders()) as Record<string, string>),
+          ...(Object.fromEntries(await getAuthHeaders()) as Record<
+            string,
+            string
+          >),
           "Content-Type": "application/json",
         },
         body: JSON.stringify(displayData),
@@ -681,11 +823,11 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${displayData.survey_metadata.location_id}.dxf`;
+      a.download = `${displayData.survey_metadata.location_id}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -796,8 +938,8 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
               ファイルをダウンロード
             </a>
             <button
-              onClick={handleExportDXF}
-              disabled={exporting}
+              onClick={() => handleExport("dxf")}
+              disabled={exporting !== null}
               className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
             >
               <svg
@@ -813,11 +955,33 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                 />
               </svg>
-              {exporting ? "出力中..." : "DXF 出力"}
+              {exporting === "dxf" ? "出力中..." : "DXF 出力"}
             </button>
           </div>
         </div>
       )}
+
+      <section className="rounded-xl bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            出力
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {(["dxf", "csv", "xlsx"] as const).map((format) => (
+              <button
+                key={format}
+                onClick={() => handleExport(format)}
+                disabled={exporting !== null}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                {exporting === format
+                  ? "出力中..."
+                  : `${format.toUpperCase()} 出力`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* 編集アクションバー */}
       {onSave && (
@@ -957,6 +1121,8 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
           )}
         </div>
       </section>
+
+      <ValidationSummary data={displayData} />
 
       <SurveyMapPreview data={displayData} />
 
