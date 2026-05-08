@@ -15,7 +15,6 @@ export default function Home() {
   const [mimeType, setMimeType] = useState("image/jpeg");
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState<SurveyData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveName, setSaveName] = useState("");
@@ -81,33 +80,6 @@ export default function Home() {
     }
   };
 
-  const handleExportDXF = async () => {
-    if (!result) return;
-    setExporting(true);
-    try {
-      const res = await fetch("/api/export-dxf", {
-        method: "POST",
-        headers: {
-          ...(Object.fromEntries(await getAuthHeaders()) as Record<
-            string,
-            string
-          >),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(result),
-      });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${result.survey_metadata.location_id}.dxf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const handleSave = () => {
     if (!result || !imageBase64) return;
     saveMap.mutate({
@@ -136,28 +108,6 @@ export default function Home() {
             >
               履歴
             </Link>
-            {result && (
-              <button
-                onClick={handleExportDXF}
-                disabled={exporting}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60"
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
-                {exporting ? "出力中..." : "DXF 出力"}
-              </button>
-            )}
             {result && !saved && (
               <button
                 onClick={() => setShowSaveDialog(true)}

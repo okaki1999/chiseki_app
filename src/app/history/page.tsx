@@ -22,7 +22,7 @@ export default function HistoryPage() {
     id: string,
     extractedData: unknown,
     locationId: string,
-    format: "dxf" | "csv" | "xlsx",
+    format: "dxf" | "csv" | "xlsx" | "sima",
   ) => {
     setExportingId(`${id}-${format}`);
     try {
@@ -41,7 +41,7 @@ export default function HistoryPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${locationId}.${format}`;
+      a.download = `${locationId}.${format === "sima" ? "sim" : format}`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -276,6 +276,22 @@ export default function HistoryPage() {
                     title="Excelを出力"
                   >
                     XLSX
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleExportFile(
+                        record.id,
+                        record.extractedData,
+                        data.survey_metadata.location_id,
+                        "sima",
+                      )
+                    }
+                    disabled={exportingId === `${record.id}-sima`}
+                    className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    title="SIMAを出力"
+                  >
+                    SIMA
                   </button>
 
                   {/* 削除 */}

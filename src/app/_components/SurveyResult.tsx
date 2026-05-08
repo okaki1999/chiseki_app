@@ -796,16 +796,16 @@ const isPdfUrl = (url: string) =>
 export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<SurveyData>(result);
-  const [exporting, setExporting] = useState<"dxf" | "csv" | "xlsx" | null>(
-    null,
-  );
+  const [exporting, setExporting] = useState<
+    "dxf" | "csv" | "xlsx" | "sima" | null
+  >(null);
 
   const displayData = editMode ? editData : result;
   const totalArea = displayData.parcels
     .reduce((sum, p) => sum + p.area_m2, 0)
     .toFixed(2);
 
-  const handleExport = async (format: "dxf" | "csv" | "xlsx") => {
+  const handleExport = async (format: "dxf" | "csv" | "xlsx" | "sima") => {
     setExporting(format);
     try {
       const res = await fetch(`/api/export-${format}`, {
@@ -823,7 +823,7 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${displayData.survey_metadata.location_id}.${format}`;
+      a.download = `${displayData.survey_metadata.location_id}.${format === "sima" ? "sim" : format}`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -937,26 +937,6 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
               </svg>
               ファイルをダウンロード
             </a>
-            <button
-              onClick={() => handleExport("dxf")}
-              disabled={exporting !== null}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              {exporting === "dxf" ? "出力中..." : "DXF 出力"}
-            </button>
           </div>
         </div>
       )}
@@ -967,7 +947,7 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
             出力
           </h2>
           <div className="flex flex-wrap gap-2">
-            {(["dxf", "csv", "xlsx"] as const).map((format) => (
+            {(["dxf", "csv", "xlsx", "sima"] as const).map((format) => (
               <button
                 key={format}
                 onClick={() => handleExport(format)}
