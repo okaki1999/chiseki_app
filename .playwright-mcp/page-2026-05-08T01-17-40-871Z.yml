@@ -1,0 +1,13 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Zahyoc" [level=1] [ref=e5]
+        - paragraph [ref=e6]: 地積測量図 OCR 解析
+      - generic [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+        - generic [ref=e12]: 地積測量図をアップロード
+        - generic [ref=e13]: JPG / PNG / PDF
+  - button "Open Next.js Dev Tools" [ref=e19] [cursor=pointer]:
+    - img [ref=e20]
+  - alert [ref=e23]

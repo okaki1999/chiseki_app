@@ -18,3 +18,14 @@ model Post {
 
     @@index([name])
 }
+
+model SurveyMap {
+    id            String   @id @default(cuid())
+    name          String
+    imageUrl      String
+    extractedData Json
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    @@index([createdAt])
+}
