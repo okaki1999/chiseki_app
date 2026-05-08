@@ -1,6 +1,11 @@
 import ExcelJS from "exceljs";
 import { type SurveyData } from "~/lib/dxf";
-import { getAreaChecks, getSurveyIssues } from "~/lib/survey-validation";
+import {
+  getAreaChecks,
+  getSurveyCalculationMethod,
+  getSurveyIssues,
+  isCoordinateBasedSurvey,
+} from "~/lib/survey-validation";
 
 const csvCell = (value: string | number | null | undefined) => {
   const text = value === null || value === undefined ? "" : String(value);
@@ -11,6 +16,10 @@ const toCsv = (rows: (string | number | null | undefined)[][]) =>
   `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
 
 export function generateSurveyCsv(data: SurveyData) {
+  if (!isCoordinateBasedSurvey(data)) {
+    return generateAreaOnlyCsv(data);
+  }
+
   const areaChecks = getAreaChecks(data);
   const rows: (string | number | null | undefined)[][] = [
     [
@@ -83,6 +92,95 @@ export function generateSurveyCsv(data: SurveyData) {
   return toCsv(rows);
 }
 
+const methodLabel = (method: string | undefined) => {
+  switch (method) {
+    case "coordinate":
+      return "座標求積";
+    case "triangulation":
+      return "三斜求積";
+    case "residual":
+      return "残地求積";
+    case "mixed":
+      return "混在";
+    case "area_only":
+      return "面積のみ";
+    default:
+      return "不明";
+  }
+};
+
+function generateAreaOnlyCsv(data: SurveyData) {
+  const areaChecks = getAreaChecks(data);
+  const rows: (string | number | null | undefined)[][] = [
+    [
+      "地番",
+      "種別",
+      "求積方式",
+      "記載面積㎡",
+      "計算面積㎡",
+      "差分㎡",
+      "判定",
+      "計算式・根拠",
+      "備考",
+    ],
+  ];
+
+  for (const parcel of data.parcels) {
+    const area = areaChecks.find(
+      (check) => check.parcelId === parcel.parcel_id,
+    );
+    const method =
+      parcel.calculation_method ?? data.survey_metadata.calculation_method;
+    rows.push([
+      parcel.parcel_id,
+      method === "residual" ? "残地" : "筆",
+      methodLabel(method),
+      parcel.area_m2,
+      area?.calculatedArea?.toFixed(3) ?? "",
+      area?.difference?.toFixed(3) ?? "",
+      area?.status === "skipped"
+        ? "対象外"
+        : area?.status === "ok"
+          ? "OK"
+          : "要確認",
+      parcel.calculation_notes ?? "",
+      area?.reason ?? "",
+    ]);
+  }
+
+  if (data.adjacent_parcels.length > 0) {
+    rows.push([]);
+    rows.push([
+      "隣接",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      data.adjacent_parcels.join("、"),
+      "",
+    ]);
+  }
+
+  if (data.survey_metadata.method_evidence?.length) {
+    rows.push([]);
+    rows.push([
+      "分類根拠",
+      "",
+      methodLabel(getSurveyCalculationMethod(data)),
+      "",
+      "",
+      "",
+      "",
+      data.survey_metadata.method_evidence.join("、"),
+      "",
+    ]);
+  }
+
+  return toCsv(rows);
+}
+
 type SheetRow = Record<string, string | number>;
 
 const addJsonSheet = (
@@ -116,6 +214,7 @@ export async function generateSurveyWorkbookBuffer(
   workbook.created = new Date();
   const areaChecks = getAreaChecks(data);
   const issues = getSurveyIssues(data);
+  const coordinateBased = isCoordinateBasedSurvey(data);
 
   addJsonSheet(workbook, "基本情報", [
     {
@@ -127,72 +226,123 @@ export async function generateSurveyWorkbookBuffer(
       測量士: data.survey_metadata.surveyor ?? "",
       作成者: data.survey_metadata.creator_organization ?? "",
       申請人: data.survey_metadata.applicant ?? "",
+      求積方式: methodLabel(getSurveyCalculationMethod(data)),
+      座標状態: data.survey_metadata.coordinate_status ?? "",
     },
   ]);
 
-  addJsonSheet(
-    workbook,
-    "筆一覧",
-    data.parcels.map((parcel) => {
-      const area = areaChecks.find(
-        (check) => check.parcelId === parcel.parcel_id,
-      );
-      return {
-        筆ID: parcel.parcel_id,
-        "記載面積㎡": parcel.area_m2,
-        "座標計算面積㎡":
-          area?.calculatedArea === null || area?.calculatedArea === undefined
-            ? ""
-            : Number(area.calculatedArea.toFixed(3)),
-        "差分㎡":
-          area?.difference === null || area?.difference === undefined
-            ? ""
-            : Number(area.difference.toFixed(3)),
-        差分率:
-          area?.differenceRate === null || area?.differenceRate === undefined
-            ? ""
-            : `${(area.differenceRate * 100).toFixed(3)}%`,
-        判定:
-          area?.status === "ok"
-            ? "OK"
-            : area?.status === "skipped"
+  if (coordinateBased) {
+    addJsonSheet(
+      workbook,
+      "筆一覧",
+      data.parcels.map((parcel) => {
+        const area = areaChecks.find(
+          (check) => check.parcelId === parcel.parcel_id,
+        );
+        return {
+          筆ID: parcel.parcel_id,
+          "記載面積㎡": parcel.area_m2,
+          "座標計算面積㎡":
+            area?.calculatedArea === null || area?.calculatedArea === undefined
+              ? ""
+              : Number(area.calculatedArea.toFixed(3)),
+          "差分㎡":
+            area?.difference === null || area?.difference === undefined
+              ? ""
+              : Number(area.difference.toFixed(3)),
+          差分率:
+            area?.differenceRate === null || area?.differenceRate === undefined
+              ? ""
+              : `${(area.differenceRate * 100).toFixed(3)}%`,
+          判定:
+            area?.status === "ok"
+              ? "OK"
+              : area?.status === "skipped"
+                ? "対象外"
+                : "要確認",
+          点数: parcel.coordinates.length,
+          求積方式: methodLabel(parcel.calculation_method),
+          備考: area?.reason ?? parcel.calculation_notes ?? "",
+        };
+      }),
+    );
+  } else {
+    addJsonSheet(
+      workbook,
+      "面積・求積根拠",
+      data.parcels.map((parcel) => {
+        const area = areaChecks.find(
+          (check) => check.parcelId === parcel.parcel_id,
+        );
+        const method =
+          parcel.calculation_method ?? data.survey_metadata.calculation_method;
+        return {
+          地番: parcel.parcel_id,
+          種別: method === "residual" ? "残地" : "筆",
+          求積方式: methodLabel(method),
+          "記載面積㎡": parcel.area_m2,
+          "計算面積㎡":
+            area?.calculatedArea === null || area?.calculatedArea === undefined
+              ? ""
+              : Number(area.calculatedArea.toFixed(3)),
+          "差分㎡":
+            area?.difference === null || area?.difference === undefined
+              ? ""
+              : Number(area.difference.toFixed(3)),
+          判定:
+            area?.status === "skipped"
               ? "対象外"
-              : "要確認",
-        点数: parcel.coordinates.length,
-        求積方式: parcel.calculation_method ?? "",
-        備考: area?.reason ?? parcel.calculation_notes ?? "",
-      };
-    }),
-  );
+              : area?.status === "ok"
+                ? "OK"
+                : "要確認",
+          "計算式・根拠": parcel.calculation_notes ?? "",
+          備考: area?.reason ?? "",
+        };
+      }),
+    );
 
-  addJsonSheet(
-    workbook,
-    "測点一覧",
-    data.parcels.flatMap((parcel) =>
-      parcel.coordinates.map((coordinate, index) => ({
-        筆ID: parcel.parcel_id,
-        No: index + 1,
-        測点: coordinate.point,
-        X座標: coordinate.x,
-        Y座標: coordinate.y,
-        境界標: coordinate.marker_type ?? "",
-      })),
-    ),
-  );
+    addJsonSheet(workbook, "分類根拠", [
+      {
+        求積方式: methodLabel(getSurveyCalculationMethod(data)),
+        確信度: data.survey_metadata.method_confidence ?? "",
+        根拠: data.survey_metadata.method_evidence?.join("、") ?? "",
+        隣接: data.adjacent_parcels.join("、"),
+      },
+    ]);
+  }
 
-  addJsonSheet(
-    workbook,
-    "基準点",
-    data.reference_points.length > 0
-      ? data.reference_points.map((point, index) => ({
+  if (coordinateBased) {
+    addJsonSheet(
+      workbook,
+      "測点一覧",
+      data.parcels.flatMap((parcel) =>
+        parcel.coordinates.map((coordinate, index) => ({
+          筆ID: parcel.parcel_id,
           No: index + 1,
-          測点: point.point,
-          X座標: point.x,
-          Y座標: point.y,
-          境界標: point.marker_type ?? "",
-        }))
-      : [{ No: "", 測点: "", X座標: "", Y座標: "", 境界標: "" }],
-  );
+          測点: coordinate.point,
+          X座標: coordinate.x,
+          Y座標: coordinate.y,
+          境界標: coordinate.marker_type ?? "",
+        })),
+      ),
+    );
+  }
+
+  if (coordinateBased || data.reference_points.length > 0) {
+    addJsonSheet(
+      workbook,
+      "基準点",
+      data.reference_points.length > 0
+        ? data.reference_points.map((point, index) => ({
+            No: index + 1,
+            測点: point.point,
+            X座標: point.x,
+            Y座標: point.y,
+            境界標: point.marker_type ?? "",
+          }))
+        : [{ No: "", 測点: "", X座標: "", Y座標: "", 境界標: "" }],
+    );
+  }
 
   addJsonSheet(
     workbook,
