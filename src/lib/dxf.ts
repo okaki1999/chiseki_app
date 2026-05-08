@@ -8,6 +8,13 @@ export type Coordinate = {
 export type Parcel = {
   parcel_id: string;
   area_m2: number;
+  calculation_method?:
+    | "coordinate"
+    | "triangulation"
+    | "residual"
+    | "area_only"
+    | "unknown";
+  calculation_notes?: string;
   coordinates: Coordinate[];
 };
 
@@ -21,6 +28,25 @@ export type SurveyData = {
     surveyor?: string;
     creator_organization?: string;
     applicant?: string;
+    calculation_method?:
+      | "coordinate"
+      | "triangulation"
+      | "residual"
+      | "mixed"
+      | "area_only"
+      | "unknown";
+    method_confidence?: number;
+    method_evidence?: string[];
+    coordinate_status?:
+      | "public_coordinates"
+      | "local_coordinates"
+      | "no_coordinates"
+      | "unknown";
+    document_type?:
+      | "survey_map"
+      | "cadastral_map"
+      | "boundary_photo"
+      | "unknown";
   };
   parcels: Parcel[];
   reference_points: Coordinate[];
@@ -40,7 +66,8 @@ const safeName = (s: string) => s.replace(/\s+/g, "_").slice(0, 31);
 export function generateDXF(data: SurveyData): string {
   const L: string[] = [];
   // DXF: グループコードと値を交互に1行ずつ出力
-  const w = (...args: (string | number)[]) => args.forEach((a) => L.push(String(a)));
+  const w = (...args: (string | number)[]) =>
+    args.forEach((a) => L.push(String(a)));
 
   const allPts = [
     ...data.parcels.flatMap((p) => p.coordinates),

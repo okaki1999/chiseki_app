@@ -9,7 +9,10 @@ import { type SurveyData, type Coordinate } from "~/lib/dxf";
 import {
   getAreaChecks,
   getIssueCounts,
+  getSurveyCalculationMethod,
   getSurveyIssues,
+  hasAnyUsableCoordinates,
+  isCoordinateBasedSurvey,
   type SurveyIssue,
 } from "~/lib/survey-validation";
 
@@ -176,6 +179,7 @@ function ValidationSummary({ data }: { data: SurveyData }) {
   const areaChecks = getAreaChecks(data);
   const issues = getSurveyIssues(data);
   const counts = getIssueCounts(issues);
+  const coordinateBased = isCoordinateBasedSurvey(data);
 
   return (
     <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -202,8 +206,14 @@ function ValidationSummary({ data }: { data: SurveyData }) {
             <tr className="border-b text-left text-gray-400">
               <th className="pr-4 pb-2 font-normal">筆ID</th>
               <th className="pr-4 pb-2 text-right font-normal">記載面積</th>
-              <th className="pr-4 pb-2 text-right font-normal">座標計算面積</th>
-              <th className="pr-4 pb-2 text-right font-normal">差分</th>
+              {coordinateBased && (
+                <>
+                  <th className="pr-4 pb-2 text-right font-normal">
+                    座標計算面積
+                  </th>
+                  <th className="pr-4 pb-2 text-right font-normal">差分</th>
+                </>
+              )}
               <th className="pb-2 font-normal">判定</th>
             </tr>
           </thead>
@@ -216,27 +226,45 @@ function ValidationSummary({ data }: { data: SurveyData }) {
                 <td className="py-2 pr-4 text-right font-mono text-gray-600">
                   {check.recordedArea.toFixed(2)}㎡
                 </td>
-                <td className="py-2 pr-4 text-right font-mono text-gray-600">
-                  {check.calculatedArea.toFixed(2)}㎡
-                </td>
-                <td
-                  className={`py-2 pr-4 text-right font-mono ${
-                    check.status === "ok" ? "text-gray-600" : "text-amber-700"
-                  }`}
-                >
-                  {check.difference >= 0 ? "+" : ""}
-                  {check.difference.toFixed(3)}㎡
-                </td>
+                {coordinateBased && (
+                  <>
+                    <td className="py-2 pr-4 text-right font-mono text-gray-600">
+                      {check.calculatedArea === null
+                        ? "—"
+                        : `${check.calculatedArea.toFixed(2)}㎡`}
+                    </td>
+                    <td
+                      className={`py-2 pr-4 text-right font-mono ${
+                        check.status === "ok"
+                          ? "text-gray-600"
+                          : "text-amber-700"
+                      }`}
+                    >
+                      {check.difference === null
+                        ? "—"
+                        : `${check.difference >= 0 ? "+" : ""}${check.difference.toFixed(3)}㎡`}
+                    </td>
+                  </>
+                )}
                 <td className="py-2">
                   <span
                     className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                       check.status === "ok"
                         ? "bg-green-50 text-green-700"
-                        : "bg-amber-50 text-amber-700"
+                        : check.status === "skipped"
+                          ? "bg-blue-50 text-blue-700"
+                          : "bg-amber-50 text-amber-700"
                     }`}
                   >
-                    {check.status === "ok" ? "OK" : "要確認"}
+                    {check.status === "ok"
+                      ? "OK"
+                      : check.status === "skipped"
+                        ? "対象外"
+                        : "要確認"}
                   </span>
+                  {check.reason && (
+                    <p className="mt-1 text-xs text-gray-400">{check.reason}</p>
+                  )}
                 </td>
               </tr>
             ))}
@@ -442,6 +470,40 @@ function placePreviewLabels({
 
   return placed;
 }
+
+const methodLabel = (
+  method: ReturnType<typeof getSurveyCalculationMethod> | undefined,
+) => {
+  switch (method) {
+    case "coordinate":
+      return "座標求積";
+    case "triangulation":
+      return "三斜求積";
+    case "residual":
+      return "残地求積";
+    case "mixed":
+      return "混在";
+    case "area_only":
+      return "面積のみ";
+    default:
+      return "不明";
+  }
+};
+
+const coordinateStatusLabel = (
+  status: SurveyData["survey_metadata"]["coordinate_status"],
+) => {
+  switch (status) {
+    case "public_coordinates":
+      return "公共座標";
+    case "local_coordinates":
+      return "任意・局所座標";
+    case "no_coordinates":
+      return "座標なし";
+    default:
+      return "不明";
+  }
+};
 
 type PlaneCoordinateSystem = {
   code: number;
@@ -1007,8 +1069,15 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
   const totalArea = displayData.parcels
     .reduce((sum, p) => sum + p.area_m2, 0)
     .toFixed(2);
+  const calculationMethod = getSurveyCalculationMethod(displayData);
+  const hasCoordinates = hasAnyUsableCoordinates(displayData);
+  const canExportSpatial =
+    hasCoordinates && isCoordinateBasedSurvey(displayData);
 
   const handleExport = async (format: "dxf" | "csv" | "xlsx" | "sima") => {
+    if ((format === "dxf" || format === "sima") && !canExportSpatial) {
+      return;
+    }
     setExporting(format);
     try {
       const res = await fetch(`/api/export-${format}`, {
@@ -1154,7 +1223,15 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
               <button
                 key={format}
                 onClick={() => handleExport(format)}
-                disabled={exporting !== null}
+                disabled={
+                  exporting !== null ||
+                  ((format === "dxf" || format === "sima") && !canExportSpatial)
+                }
+                title={
+                  (format === "dxf" || format === "sima") && !canExportSpatial
+                    ? "座標がないため出力できません"
+                    : undefined
+                }
                 className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
               >
                 {exporting === format
@@ -1258,6 +1335,11 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
                 value={editData.survey_metadata.applicant ?? ""}
                 onChange={(v) => updateMeta("applicant", v)}
               />
+              <MetaInput
+                label="求積方式"
+                value={methodLabel(calculationMethod)}
+                onChange={() => undefined}
+              />
             </>
           ) : (
             <>
@@ -1282,6 +1364,16 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
                 label="縮尺係数"
                 value={String(result.survey_metadata.scale_factor)}
               />
+              <MetaItem
+                label="求積方式"
+                value={methodLabel(calculationMethod)}
+              />
+              <MetaItem
+                label="座標状態"
+                value={coordinateStatusLabel(
+                  result.survey_metadata.coordinate_status,
+                )}
+              />
               {result.survey_metadata.surveyor && (
                 <MetaItem
                   label="測量士"
@@ -1303,13 +1395,40 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
             </>
           )}
         </div>
+        {displayData.survey_metadata.method_evidence &&
+          displayData.survey_metadata.method_evidence.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {displayData.survey_metadata.method_evidence.map((evidence) => (
+                <span
+                  key={evidence}
+                  className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700"
+                >
+                  {evidence}
+                </span>
+              ))}
+            </div>
+          )}
       </section>
 
       <ValidationSummary data={displayData} />
 
-      <SurveyMapPreview data={displayData} />
+      {canExportSpatial ? (
+        <>
+          <SurveyMapPreview data={displayData} />
 
-      <SurveyShapePreview data={displayData} />
+          <SurveyShapePreview data={displayData} />
+        </>
+      ) : (
+        <section className="rounded-xl bg-white p-6 shadow-sm">
+          <h2 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            図形・地図プレビュー
+          </h2>
+          <p className="text-sm text-gray-500">
+            この図面は{methodLabel(calculationMethod)}
+            として扱われています。座標表がないため、地図表示・図形復元・DXF/SIMA出力は対象外です。
+          </p>
+        </section>
+      )}
 
       {/* 筆ごとの座標 */}
       {displayData.parcels.map((parcel, parcelIdx) => (
@@ -1343,6 +1462,16 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
               rows={parcel.coordinates}
               onChange={(coords) => updateParcelCoords(parcelIdx, coords)}
             />
+          ) : parcel.coordinates.length === 0 ? (
+            <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
+              座標表は読み取られていません。
+              {parcel.calculation_method
+                ? `${methodLabel(parcel.calculation_method)}として面積を表示しています。`
+                : "面積のみを表示しています。"}
+              {parcel.calculation_notes && (
+                <p className="mt-1 text-blue-800">{parcel.calculation_notes}</p>
+              )}
+            </div>
           ) : (
             <CoordTable rows={parcel.coordinates} />
           )}

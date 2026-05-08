@@ -3,11 +3,12 @@ import { type Coordinate, type Parcel, type SurveyData } from "~/lib/dxf";
 export type AreaCheck = {
   parcelId: string;
   recordedArea: number;
-  calculatedArea: number;
-  difference: number;
-  differenceRate: number;
-  tolerance: number;
-  status: "ok" | "warning";
+  calculatedArea: number | null;
+  difference: number | null;
+  differenceRate: number | null;
+  tolerance: number | null;
+  status: "ok" | "warning" | "skipped";
+  reason?: string;
 };
 
 export type SurveyIssue = {
@@ -27,6 +28,44 @@ const coordinateKey = (coordinate: Coordinate) =>
 const distance = (a: Coordinate, b: Coordinate) =>
   Math.hypot(a.x - b.x, a.y - b.y);
 
+export const hasUsableParcelCoordinates = (parcel: Parcel) =>
+  parcel.coordinates.filter(
+    (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+  ).length >= 3;
+
+export const hasAnyUsableCoordinates = (data: SurveyData) =>
+  data.parcels.some(hasUsableParcelCoordinates) ||
+  data.reference_points.some(
+    (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+  );
+
+export const getSurveyCalculationMethod = (data: SurveyData) => {
+  const declared = data.survey_metadata.calculation_method;
+  if (declared && declared !== "unknown") return declared;
+
+  const parcelMethods = new Set(
+    data.parcels
+      .map((parcel) => parcel.calculation_method)
+      .filter((method): method is NonNullable<typeof method> =>
+        Boolean(method && method !== "unknown"),
+      ),
+  );
+
+  if (parcelMethods.size > 1) return "mixed";
+  const [singleMethod] = [...parcelMethods];
+  if (singleMethod) return singleMethod;
+  if (data.parcels.some(hasUsableParcelCoordinates)) return "coordinate";
+  if (data.parcels.some((parcel) => parcel.area_m2 > 0)) return "area_only";
+  return "unknown";
+};
+
+export const isCoordinateBasedSurvey = (data: SurveyData) => {
+  const method = getSurveyCalculationMethod(data);
+  return (
+    method === "coordinate" || data.parcels.some(hasUsableParcelCoordinates)
+  );
+};
+
 export function calculateParcelArea(parcel: Parcel): number {
   const points = parcel.coordinates.filter(
     (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
@@ -44,6 +83,24 @@ export function calculateParcelArea(parcel: Parcel): number {
 
 export function getAreaChecks(data: SurveyData): AreaCheck[] {
   return data.parcels.map((parcel) => {
+    if (!hasUsableParcelCoordinates(parcel)) {
+      return {
+        parcelId: parcel.parcel_id,
+        recordedArea: parcel.area_m2,
+        calculatedArea: null,
+        difference: null,
+        differenceRate: null,
+        tolerance: null,
+        status: "skipped",
+        reason:
+          parcel.calculation_method === "triangulation"
+            ? "三斜求積のため座標面積検算は対象外です"
+            : parcel.calculation_method === "residual"
+              ? "残地求積のため座標面積検算は対象外です"
+              : "座標がないため座標面積検算は対象外です",
+      };
+    }
+
     const calculatedArea = calculateParcelArea(parcel);
     const difference = calculatedArea - parcel.area_m2;
     const tolerance = areaTolerance(parcel.area_m2);
@@ -68,7 +125,9 @@ export function getSurveyIssues(data: SurveyData): SurveyIssue[] {
   const issues: SurveyIssue[] = [];
   const areaChecks = getAreaChecks(data);
 
-  if (!data.survey_metadata.coordinate_system?.trim()) {
+  const coordinateBased = isCoordinateBasedSurvey(data);
+
+  if (coordinateBased && !data.survey_metadata.coordinate_system?.trim()) {
     issues.push({
       level: "warning",
       title: "座標系が未入力です",
@@ -76,12 +135,41 @@ export function getSurveyIssues(data: SurveyData): SurveyIssue[] {
     });
   }
 
+  if (!coordinateBased) {
+    const method = getSurveyCalculationMethod(data);
+    issues.push({
+      level: "info",
+      title: "座標求積ではない可能性があります",
+      message:
+        method === "triangulation"
+          ? "三斜求積として読み取られました。座標面積検算、地図表示、DXF/SIMA出力は対象外です。"
+          : method === "residual"
+            ? "残地求積として読み取られました。全体面積から控除面積を差し引く検算が必要です。"
+            : method === "mixed"
+              ? "座標求積、三斜求積、残地求積が混在している可能性があります。"
+              : "面積は読み取れていますが、座標表が見当たりません。",
+    });
+  }
+
   for (const parcel of data.parcels) {
-    if (parcel.coordinates.length < 3) {
+    const parcelHasCoordinates = hasUsableParcelCoordinates(parcel);
+    if (coordinateBased && !parcelHasCoordinates) {
       issues.push({
         level: "error",
         title: "構成点が不足しています",
         message: "筆界ポリゴンを作るには3点以上の座標が必要です。",
+        parcelId: parcel.parcel_id,
+      });
+    } else if (!coordinateBased && !parcelHasCoordinates) {
+      issues.push({
+        level: "info",
+        title: "座標なし筆です",
+        message:
+          parcel.calculation_method === "triangulation"
+            ? "三斜求積欄の面積を記載面積として扱っています。"
+            : parcel.calculation_method === "residual"
+              ? "残地求積欄の面積を記載面積として扱っています。"
+              : "座標表がないため、記載面積のみを表示しています。",
         parcelId: parcel.parcel_id,
       });
     }
@@ -140,12 +228,15 @@ export function getSurveyIssues(data: SurveyData): SurveyIssue[] {
       }
     }
 
-    const segmentLengths = parcel.coordinates.map((point, index) =>
-      distance(
-        point,
-        parcel.coordinates[(index + 1) % parcel.coordinates.length] ?? point,
-      ),
-    );
+    const segmentLengths = parcelHasCoordinates
+      ? parcel.coordinates.map((point, index) =>
+          distance(
+            point,
+            parcel.coordinates[(index + 1) % parcel.coordinates.length] ??
+              point,
+          ),
+        )
+      : [];
     const sortedLengths = [...segmentLengths].sort((a, b) => a - b);
     const medianLength =
       sortedLengths[Math.floor(sortedLengths.length / 2)] ?? 0;
@@ -163,7 +254,7 @@ export function getSurveyIssues(data: SurveyData): SurveyIssue[] {
   }
 
   for (const check of areaChecks) {
-    if (check.status === "warning") {
+    if (check.status === "warning" && check.calculatedArea !== null) {
       issues.push({
         level: "warning",
         title: "面積差が閾値を超えています",

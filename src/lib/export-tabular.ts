@@ -40,9 +40,27 @@ export function generateSurveyCsv(data: SurveyData) {
         coordinate.y,
         coordinate.marker_type ?? "",
         parcel.area_m2,
-        area?.calculatedArea.toFixed(3),
-        area?.difference.toFixed(3),
-        area ? (area.differenceRate * 100).toFixed(3) : "",
+        area?.calculatedArea?.toFixed(3),
+        area?.difference?.toFixed(3),
+        area?.differenceRate !== null && area?.differenceRate !== undefined
+          ? (area.differenceRate * 100).toFixed(3)
+          : "",
+      ]);
+    }
+    if (parcel.coordinates.length === 0) {
+      rows.push([
+        "筆",
+        parcel.parcel_id,
+        "",
+        "",
+        "",
+        "",
+        parcel.area_m2,
+        area?.calculatedArea?.toFixed(3),
+        area?.difference?.toFixed(3),
+        area?.differenceRate !== null && area?.differenceRate !== undefined
+          ? (area.differenceRate * 100).toFixed(3)
+          : "",
       ]);
     }
   }
@@ -122,11 +140,27 @@ export async function generateSurveyWorkbookBuffer(
       return {
         筆ID: parcel.parcel_id,
         "記載面積㎡": parcel.area_m2,
-        "座標計算面積㎡": Number(area?.calculatedArea.toFixed(3) ?? 0),
-        "差分㎡": Number(area?.difference.toFixed(3) ?? 0),
-        差分率: area ? `${(area.differenceRate * 100).toFixed(3)}%` : "",
-        判定: area?.status === "ok" ? "OK" : "要確認",
+        "座標計算面積㎡":
+          area?.calculatedArea === null || area?.calculatedArea === undefined
+            ? ""
+            : Number(area.calculatedArea.toFixed(3)),
+        "差分㎡":
+          area?.difference === null || area?.difference === undefined
+            ? ""
+            : Number(area.difference.toFixed(3)),
+        差分率:
+          area?.differenceRate === null || area?.differenceRate === undefined
+            ? ""
+            : `${(area.differenceRate * 100).toFixed(3)}%`,
+        判定:
+          area?.status === "ok"
+            ? "OK"
+            : area?.status === "skipped"
+              ? "対象外"
+              : "要確認",
         点数: parcel.coordinates.length,
+        求積方式: parcel.calculation_method ?? "",
+        備考: area?.reason ?? parcel.calculation_notes ?? "",
       };
     }),
   );
