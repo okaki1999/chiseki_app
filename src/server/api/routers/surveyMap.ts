@@ -1,7 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { canDeleteSurveyMap, canWriteSurveyMap } from "~/server/auth";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { env } from "~/env";
 import { getSupabase, STORAGE_BUCKET } from "~/lib/supabase";
 
@@ -22,7 +24,8 @@ async function uploadImage(
       .from(STORAGE_BUCKET)
       .upload(filename, buffer, { contentType: imageMimeType });
     if (error) throw new Error(`画像アップロード失敗: ${error.message}`);
-    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filename).data.publicUrl;
+    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filename).data
+      .publicUrl;
   }
 
   // ローカルフォールバック: public/uploads/ に保存
@@ -51,7 +54,7 @@ async function deleteImage(imageUrl: string): Promise<void> {
 }
 
 export const surveyMapRouter = createTRPCRouter({
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
         name: z.string().min(1),
@@ -61,24 +64,47 @@ export const surveyMapRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const imageUrl = await uploadImage(input.imageBase64, input.imageMimeType);
+      if (!canWriteSurveyMap(ctx.session.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "保存権限がありません",
+        });
+      }
+
+      const imageUrl = await uploadImage(
+        input.imageBase64,
+        input.imageMimeType,
+      );
       return ctx.db.surveyMap.create({
         data: {
+          tenantId: ctx.session.tenant.id,
           name: input.name,
           imageUrl,
           extractedData: input.extractedData as object,
+          createdById: ctx.session.user.id,
         },
       });
     }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db.surveyMap.findUnique({ where: { id: input.id } });
+      return ctx.db.surveyMap.findFirst({
+        where: {
+          id: input.id,
+          ...(ctx.session.role !== "SUPER_ADMIN" && {
+            tenantId: ctx.session.tenant.id,
+          }),
+        },
+      });
     }),
 
-  list: publicProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.surveyMap.findMany({
+      where:
+        ctx.session.role === "SUPER_ADMIN"
+          ? undefined
+          : { tenantId: ctx.session.tenant.id },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -90,7 +116,7 @@ export const surveyMapRouter = createTRPCRouter({
     });
   }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -99,20 +125,61 @@ export const surveyMapRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      if (!canWriteSurveyMap(ctx.session.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "更新権限がありません",
+        });
+      }
+
+      const record = await ctx.db.surveyMap.findFirst({
+        where: {
+          id: input.id,
+          ...(ctx.session.role !== "SUPER_ADMIN" && {
+            tenantId: ctx.session.tenant.id,
+          }),
+        },
+      });
+      if (!record)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "レコードが見つかりません",
+        });
+
       return ctx.db.surveyMap.update({
         where: { id: input.id },
         data: {
           ...(input.name !== undefined && { name: input.name }),
-          ...(input.extractedData !== undefined && { extractedData: input.extractedData as object }),
+          ...(input.extractedData !== undefined && {
+            extractedData: input.extractedData as object,
+          }),
         },
       });
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const record = await ctx.db.surveyMap.findUnique({ where: { id: input.id } });
-      if (!record) throw new Error("レコードが見つかりません");
+      if (!canDeleteSurveyMap(ctx.session.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "削除権限がありません",
+        });
+      }
+
+      const record = await ctx.db.surveyMap.findFirst({
+        where: {
+          id: input.id,
+          ...(ctx.session.role !== "SUPER_ADMIN" && {
+            tenantId: ctx.session.tenant.id,
+          }),
+        },
+      });
+      if (!record)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "レコードが見つかりません",
+        });
       await deleteImage(record.imageUrl);
       return ctx.db.surveyMap.delete({ where: { id: input.id } });
     }),

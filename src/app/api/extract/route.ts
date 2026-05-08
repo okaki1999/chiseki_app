@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { env } from "~/env";
+import { resolveAppSession } from "~/server/auth";
+import { db } from "~/server/db";
 
 const MODEL = "gemini-2.5-flash";
 
@@ -50,7 +52,14 @@ const PROMPT = `この地積測量図の画像またはPDFから、以下の情�
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { base64: string; mimeType: string };
+    const body = (await req.json()) as { base64: string; mimeType: string };
+    const session = await resolveAppSession(db, req.headers);
+    if (!session) {
+      return NextResponse.json(
+        { error: "ログインしてください" },
+        { status: 401 },
+      );
+    }
 
     if (!body.base64 || !isSupportedMimeType(body.mimeType)) {
       return NextResponse.json(
@@ -69,7 +78,9 @@ export async function POST(req: NextRequest) {
             {
               parts: [
                 { text: PROMPT },
-                { inline_data: { mime_type: body.mimeType, data: body.base64 } },
+                {
+                  inline_data: { mime_type: body.mimeType, data: body.base64 },
+                },
               ],
             },
           ],
@@ -81,7 +92,7 @@ export async function POST(req: NextRequest) {
       },
     );
 
-    const result = await response.json() as {
+    const result = (await response.json()) as {
       candidates?: { content: { parts: { text: string }[] } }[];
       error?: { message: string };
     };
@@ -97,6 +108,9 @@ export async function POST(req: NextRequest) {
     const parsed = JSON.parse(text) as unknown;
     return NextResponse.json(parsed);
   } catch {
-    return NextResponse.json({ error: "サーバーエラーが発生しました" }, { status: 500 });
+    return NextResponse.json(
+      { error: "サーバーエラーが発生しました" },
+      { status: 500 },
+    );
   }
 }

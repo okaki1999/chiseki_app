@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import maplibregl, { type GeoJSONSource } from "maplibre-gl";
 import proj4 from "proj4";
+import { getAuthHeaders } from "~/lib/auth-headers";
 import { type SurveyData, type Coordinate } from "~/lib/dxf";
 
 function MetaItem({ label, value }: { label: string; value: string }) {
@@ -670,7 +671,10 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
     try {
       const res = await fetch("/api/export-dxf", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...(Object.fromEntries(await getAuthHeaders()) as Record<string, string>),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(displayData),
       });
       const blob = await res.blob();

@@ -1,10 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 import iconv from "iconv-lite";
 import { generateDXF, type SurveyData } from "~/lib/dxf";
+import { resolveAppSession } from "~/server/auth";
+import { db } from "~/server/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const data = await req.json() as SurveyData;
+    const session = await resolveAppSession(db, req.headers);
+    if (!session) {
+      return NextResponse.json(
+        { error: "ログインしてください" },
+        { status: 401 },
+      );
+    }
+
+    const data = (await req.json()) as SurveyData;
     const dxf = generateDXF(data);
 
     // CADソフトはShift-JISを期待するためエンコード変換
@@ -18,6 +28,9 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch {
-    return NextResponse.json({ error: "DXF生成に失敗しました" }, { status: 500 });
+    return NextResponse.json(
+      { error: "DXF生成に失敗しました" },
+      { status: 500 },
+    );
   }
 }
