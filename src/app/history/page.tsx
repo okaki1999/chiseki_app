@@ -6,7 +6,7 @@ import Link from "next/link";
 import { api } from "~/trpc/react";
 import { type SurveyData } from "~/lib/dxf";
 import { getAuthHeaders } from "~/lib/auth-headers";
-import { UserMenu } from "~/app/_components/UserMenu";
+import { AppHeader } from "~/app/_components/AppHeader";
 
 const isPdfUrl = (url: string) =>
   url.split("?")[0]?.toLowerCase().endsWith(".pdf") ?? false;
@@ -52,37 +52,11 @@ export default function HistoryPage() {
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-4xl">
-        {/* Header */}
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Zahyoc
-            </h1>
-            <p className="text-sm text-gray-500">解析履歴</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              新規解析
-            </Link>
-            <UserMenu />
-          </div>
-        </div>
+        <AppHeader
+          title="Zahyoc"
+          subtitle="解析履歴"
+          actions={[{ href: "/", label: "新規解析", variant: "primary" }]}
+        />
 
         {/* 一覧 */}
         {isLoading && (

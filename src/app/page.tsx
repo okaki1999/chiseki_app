@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { api } from "~/trpc/react";
 import { type SurveyData } from "~/lib/dxf";
 import { getAuthHeaders } from "~/lib/auth-headers";
 import { SurveyResult } from "~/app/_components/SurveyResult";
-import { UserMenu } from "~/app/_components/UserMenu";
+import { AppHeader } from "~/app/_components/AppHeader";
 
 export default function Home() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -93,50 +92,28 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-4xl">
-        {/* Header */}
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Zahyoc
-            </h1>
-            <p className="text-sm text-gray-500">地積測量図 OCR 解析</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/history"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              履歴
-            </Link>
-            {result && !saved && (
-              <button
-                onClick={() => setShowSaveDialog(true)}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                  />
-                </svg>
-                保存
-              </button>
-            )}
-            {saved && (
-              <span className="text-sm font-medium text-green-600">
-                ✓ 保存済み
-              </span>
-            )}
-            <UserMenu />
-          </div>
-        </div>
+        <AppHeader
+          title="Zahyoc"
+          subtitle="地積測量図 OCR 解析"
+          actions={[
+            { href: "/history", label: "履歴" },
+            ...(result && !saved
+              ? [
+                  {
+                    label: "保存",
+                    onClick: () => setShowSaveDialog(true),
+                    variant: "primary" as const,
+                  },
+                ]
+              : []),
+          ]}
+        >
+          {saved && (
+            <span className="text-sm font-medium text-green-600">
+              ✓ 保存済み
+            </span>
+          )}
+        </AppHeader>
 
         {/* 保存ダイアログ */}
         {showSaveDialog && (

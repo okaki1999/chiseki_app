@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { type AppRole } from "@prisma/client";
 import { api } from "~/trpc/react";
-import { UserMenu } from "~/app/_components/UserMenu";
+import { AppHeader } from "~/app/_components/AppHeader";
 
 const roleLabel: Record<AppRole, string> = {
   SUPER_ADMIN: "全管理者",
@@ -128,25 +127,12 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              全管理
-            </h1>
-            <p className="text-sm text-gray-500">
-              テナント、ユーザー、監査ログを管理
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              新規解析
-            </Link>
-            <UserMenu />
-          </div>
-        </div>
+        <AppHeader
+          title="全管理"
+          subtitle="テナント、ユーザー、監査ログを管理"
+          maxWidth="max-w-7xl"
+          actions={[{ href: "/", label: "新規解析" }]}
+        />
 
         {isLoading && (
           <div className="rounded-xl bg-white p-8 text-sm text-gray-400 shadow-sm">
