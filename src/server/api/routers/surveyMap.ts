@@ -90,6 +90,24 @@ export const surveyMapRouter = createTRPCRouter({
     });
   }),
 
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).optional(),
+        extractedData: z.unknown().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.surveyMap.update({
+        where: { id: input.id },
+        data: {
+          ...(input.name !== undefined && { name: input.name }),
+          ...(input.extractedData !== undefined && { extractedData: input.extractedData as object }),
+        },
+      });
+    }),
+
   delete: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {

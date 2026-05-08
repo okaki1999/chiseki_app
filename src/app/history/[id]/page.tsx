@@ -12,7 +12,11 @@ export default function HistoryDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const utils = api.useUtils();
   const { data: record, isLoading } = api.surveyMap.getById.useQuery({ id });
+  const updateMap = api.surveyMap.update.useMutation({
+    onSuccess: () => void utils.surveyMap.getById.invalidate({ id }),
+  });
 
   if (isLoading) {
     return (
@@ -62,7 +66,20 @@ export default function HistoryDetailPage({
           </div>
         </div>
 
-        <SurveyResult result={data} imageUrl={record.imageUrl} />
+        {updateMap.isError && (
+          <div className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+            保存に失敗しました: {updateMap.error.message}
+          </div>
+        )}
+
+        <SurveyResult
+          result={data}
+          imageUrl={record.imageUrl}
+          onSave={(editedData) =>
+            updateMap.mutate({ id, extractedData: editedData })
+          }
+          isSaving={updateMap.isPending}
+        />
 
       </div>
     </main>

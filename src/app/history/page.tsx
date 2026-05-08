@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { api } from "~/trpc/react";
 import { type SurveyData } from "~/lib/dxf";
+
+const isPdfUrl = (url: string) => url.split("?")[0]?.toLowerCase().endsWith(".pdf") ?? false;
 
 export default function HistoryPage() {
   const { data: records, isLoading, refetch } = api.surveyMap.list.useQuery();
@@ -81,11 +84,26 @@ export default function HistoryPage() {
 
                 {/* サムネイル */}
                 <Link href={`/history/${record.id}`}>
-                  <img
-                    src={record.imageUrl}
-                    alt={record.name}
-                    className="h-16 w-16 flex-shrink-0 rounded-lg object-cover hover:opacity-80"
-                  />
+                  {isPdfUrl(record.imageUrl) ? (
+                    <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-red-400 hover:opacity-80">
+                      <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M7 21h10a2 2 0 002-2V9.5L13.5 4H7a2 2 0 00-2 2v13a2 2 0 002 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M13 4v6h6" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <span className="relative block h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg hover:opacity-80">
+                      <Image
+                        src={record.imageUrl}
+                        alt={record.name}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    </span>
+                  )}
                 </Link>
 
                 {/* 情報 */}
@@ -103,14 +121,14 @@ export default function HistoryPage() {
 
                 {/* アクション */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* 画像ダウンロード */}
+                  {/* ファイルダウンロード */}
                   <a
                     href={record.imageUrl}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
-                    title="画像をダウンロード"
+                    title="ファイルをダウンロード"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

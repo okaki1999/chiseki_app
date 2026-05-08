@@ -3,7 +3,12 @@ import { env } from "~/env";
 
 const MODEL = "gemini-2.5-flash";
 
-const PROMPT = `この地積測量図の画像から、以下の情報をJSON形式で正確に抽出してください。
+const SUPPORTED_MIME_TYPES = new Set(["application/pdf"]);
+
+const isSupportedMimeType = (mimeType: string) =>
+  mimeType.startsWith("image/") || SUPPORTED_MIME_TYPES.has(mimeType);
+
+const PROMPT = `この地積測量図の画像またはPDFから、以下の情報をJSON形式で正確に抽出してください。PDFが複数ページの場合は、地積測量図として最も関連するページを優先して読み取ってください。
 
 {
   "survey_metadata": {
@@ -46,6 +51,13 @@ const PROMPT = `この地積測量図の画像から、以下の情報をJSON形
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as { base64: string; mimeType: string };
+
+    if (!body.base64 || !isSupportedMimeType(body.mimeType)) {
+      return NextResponse.json(
+        { error: "JPG、PNGなどの画像、またはPDFをアップロードしてください" },
+        { status: 400 },
+      );
+    }
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,

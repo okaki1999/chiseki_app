@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { api } from "~/trpc/react";
 import { type SurveyData } from "~/lib/dxf";
@@ -10,6 +11,7 @@ export default function Home() {
   const [preview, setPreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState("image/jpeg");
+  const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState<SurveyData | null>(null);
@@ -26,7 +28,10 @@ export default function Home() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setMimeType(f.type);
+    const selectedMimeType =
+      f.type || (f.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+    setMimeType(selectedMimeType);
+    setFileName(f.name);
     const reader = new FileReader();
     reader.onloadend = () => {
       const dataUrl = reader.result as string;
@@ -164,8 +169,27 @@ export default function Home() {
         {/* Upload */}
         <div className="mb-4 overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-white transition hover:border-gray-300">
           <label htmlFor="file-input" className="block cursor-pointer p-8 text-center">
-            {preview ? (
-              <img src={preview} alt="preview" className="mx-auto max-h-72 rounded-lg object-contain" />
+            {preview && mimeType === "application/pdf" ? (
+              <div className="flex flex-col items-center gap-3 text-gray-500">
+                <svg className="h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M7 21h10a2 2 0 002-2V9.5L13.5 4H7a2 2 0 00-2 2v13a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M13 4v6h6" />
+                </svg>
+                <span className="max-w-full truncate text-sm font-medium text-gray-700">{fileName}</span>
+                <span className="text-xs">PDFを解析対象として読み込みました</span>
+              </div>
+            ) : preview ? (
+              <span className="relative mx-auto block h-72 max-w-full">
+                <Image
+                  src={preview}
+                  alt="preview"
+                  fill
+                  unoptimized
+                  className="rounded-lg object-contain"
+                />
+              </span>
             ) : (
               <div className="flex flex-col items-center gap-3 text-gray-400">
                 <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -173,11 +197,11 @@ export default function Home() {
                     d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
                 <span className="text-sm font-medium">地積測量図をアップロード</span>
-                <span className="text-xs">JPG / PNG</span>
+                <span className="text-xs">JPG / PNG / PDF</span>
               </div>
             )}
           </label>
-          <input id="file-input" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          <input id="file-input" type="file" accept="image/*,application/pdf" onChange={handleFileChange} className="hidden" />
         </div>
 
         {preview && (
@@ -196,7 +220,7 @@ export default function Home() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
-            Gemini が図面を解析しています...
+            Gemini が図面ファイルを解析しています...
           </div>
         )}
 
