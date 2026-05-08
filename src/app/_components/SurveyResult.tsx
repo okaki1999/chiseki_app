@@ -291,6 +291,158 @@ const PREVIEW_COLORS = [
   { stroke: "#0891b2", fill: "#cffafe" },
 ] as const;
 
+type PreviewLabel = {
+  key: string;
+  text: string;
+  pointX: number;
+  pointY: number;
+  x: number;
+  y: number;
+  fill: string;
+  fontSize: number;
+  fontWeight: number;
+  textAnchor: "start" | "middle" | "end";
+};
+
+type LabelRect = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+const labelRect = (
+  x: number,
+  y: number,
+  text: string,
+  fontSize: number,
+  textAnchor: PreviewLabel["textAnchor"],
+): LabelRect => {
+  const width = Math.max(fontSize * 0.8, text.length * fontSize * 0.72);
+  const height = fontSize + 5;
+  const left =
+    textAnchor === "end"
+      ? x - width
+      : textAnchor === "middle"
+        ? x - width / 2
+        : x;
+
+  return {
+    left,
+    right: left + width,
+    top: y - height,
+    bottom: y + 4,
+  };
+};
+
+const rectOverlapArea = (a: LabelRect, b: LabelRect) => {
+  const width = Math.max(
+    0,
+    Math.min(a.right, b.right) - Math.max(a.left, b.left),
+  );
+  const height = Math.max(
+    0,
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top),
+  );
+  return width * height;
+};
+
+function placePreviewLabels({
+  items,
+  width,
+  height,
+  padding,
+  labelOffset,
+}: {
+  items: Array<{
+    key: string;
+    text: string;
+    pointX: number;
+    pointY: number;
+    fill: string;
+    fontSize: number;
+    fontWeight: number;
+  }>;
+  width: number;
+  height: number;
+  padding: number;
+  labelOffset: number;
+}) {
+  const placed: Array<PreviewLabel & { rect: LabelRect }> = [];
+  const candidates = [
+    { dx: labelOffset, dy: -labelOffset, anchor: "start" as const },
+    { dx: labelOffset, dy: labelOffset + 6, anchor: "start" as const },
+    { dx: -labelOffset, dy: -labelOffset, anchor: "end" as const },
+    { dx: -labelOffset, dy: labelOffset + 6, anchor: "end" as const },
+    { dx: 0, dy: -(labelOffset + 12), anchor: "middle" as const },
+    { dx: 0, dy: labelOffset + 18, anchor: "middle" as const },
+    { dx: labelOffset + 18, dy: 4, anchor: "start" as const },
+    { dx: -(labelOffset + 18), dy: 4, anchor: "end" as const },
+    { dx: labelOffset + 26, dy: -(labelOffset + 18), anchor: "start" as const },
+    {
+      dx: -(labelOffset + 26),
+      dy: -(labelOffset + 18),
+      anchor: "end" as const,
+    },
+    { dx: labelOffset + 26, dy: labelOffset + 22, anchor: "start" as const },
+    { dx: -(labelOffset + 26), dy: labelOffset + 22, anchor: "end" as const },
+  ];
+
+  const pointRects = items.map((item) => ({
+    left: item.pointX - 8,
+    right: item.pointX + 8,
+    top: item.pointY - 8,
+    bottom: item.pointY + 8,
+  }));
+
+  for (const item of items) {
+    const best = candidates
+      .map((candidate, index) => {
+        const x = item.pointX + candidate.dx;
+        const y = item.pointY + candidate.dy;
+        const rect = labelRect(
+          x,
+          y,
+          item.text,
+          item.fontSize,
+          candidate.anchor,
+        );
+        const edgePenalty =
+          Math.max(0, padding / 2 - rect.left) * 20 +
+          Math.max(0, padding / 2 - rect.top) * 20 +
+          Math.max(0, rect.right - (width - padding / 2)) * 20 +
+          Math.max(0, rect.bottom - (height - padding / 2)) * 20;
+        const labelPenalty = placed.reduce(
+          (sum, label) => sum + rectOverlapArea(rect, label.rect) * 35,
+          0,
+        );
+        const pointPenalty = pointRects.reduce(
+          (sum, pointRect) => sum + rectOverlapArea(rect, pointRect) * 12,
+          0,
+        );
+
+        return {
+          candidate,
+          rect,
+          x,
+          y,
+          score: edgePenalty + labelPenalty + pointPenalty + index,
+        };
+      })
+      .sort((a, b) => a.score - b.score)[0]!;
+
+    placed.push({
+      ...item,
+      x: best.x,
+      y: best.y,
+      textAnchor: best.candidate.anchor,
+      rect: best.rect,
+    });
+  }
+
+  return placed;
+}
+
 type PlaneCoordinateSystem = {
   code: number;
   lat0: number;
@@ -650,6 +802,46 @@ function SurveyShapePreview({ data }: { data: SurveyData }) {
     const color = PREVIEW_COLORS[index % PREVIEW_COLORS.length]!;
     return { parcel, path, points, color };
   });
+  const previewLabels = placePreviewLabels({
+    items: [
+      ...data.parcels.flatMap((parcel) => {
+        return parcel.coordinates
+          .filter(
+            (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+          )
+          .map((point) => {
+            const screen = toScreen(point);
+            return {
+              key: `parcel-${parcel.parcel_id}-${point.point}-${point.x}-${point.y}`,
+              text: point.point,
+              pointX: screen.x,
+              pointY: screen.y,
+              fill: "#111827",
+              fontSize: 14,
+              fontWeight: 700,
+            };
+          });
+      }),
+      ...data.reference_points
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+        .map((point) => {
+          const screen = toScreen(point);
+          return {
+            key: `ref-${point.point}-${point.x}-${point.y}`,
+            text: point.point,
+            pointX: screen.x,
+            pointY: screen.y,
+            fill: "#475569",
+            fontSize: 13,
+            fontWeight: 600,
+          };
+        }),
+    ],
+    width,
+    height,
+    padding,
+    labelOffset,
+  });
 
   return (
     <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -709,15 +901,6 @@ function SurveyShapePreview({ data }: { data: SurveyData }) {
                     stroke="#ffffff"
                     strokeWidth="2"
                   />
-                  <text
-                    x={screen.x + labelOffset}
-                    y={screen.y - labelOffset}
-                    fill="#475569"
-                    fontSize="13"
-                    fontWeight="600"
-                  >
-                    {point.point}
-                  </text>
                 </g>
               );
             })}
@@ -740,19 +923,39 @@ function SurveyShapePreview({ data }: { data: SurveyData }) {
                       stroke="#ffffff"
                       strokeWidth="2"
                     />
-                    <text
-                      x={screen.x + labelOffset}
-                      y={screen.y - labelOffset}
-                      fill="#111827"
-                      fontSize="14"
-                      fontWeight="700"
-                    >
-                      {point.point}
-                    </text>
                   </g>
                 );
               }),
             )}
+          </g>
+          <g>
+            {previewLabels.map((label) => (
+              <g key={label.key}>
+                <line
+                  x1={label.pointX}
+                  y1={label.pointY}
+                  x2={label.x}
+                  y2={label.y - label.fontSize / 2}
+                  stroke={label.fill}
+                  strokeOpacity="0.24"
+                  strokeWidth="1"
+                />
+                <text
+                  x={label.x}
+                  y={label.y}
+                  fill={label.fill}
+                  fontSize={label.fontSize}
+                  fontWeight={label.fontWeight}
+                  textAnchor={label.textAnchor}
+                  paintOrder="stroke"
+                  stroke="#f8fafc"
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                >
+                  {label.text}
+                </text>
+              </g>
+            ))}
           </g>
         </svg>
       </div>
