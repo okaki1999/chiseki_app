@@ -12,8 +12,8 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     GEMINI_API_KEY: z.string(),
-    SUPABASE_URL: z.string().url(),
-    SUPABASE_SERVICE_ROLE_KEY: z.string(),
+    SUPABASE_URL: z.string().url().optional(),
+    SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   },
 
   /**

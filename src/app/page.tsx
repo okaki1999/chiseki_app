@@ -3,41 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { api } from "~/trpc/react";
-import { type SurveyData, type Coordinate } from "~/lib/dxf";
-
-function MetaItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="font-medium text-gray-800">{value}</p>
-    </div>
-  );
-}
-
-function CoordTable({ rows }: { rows: Coordinate[] }) {
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b text-left text-gray-400">
-          <th className="pb-2 pr-4 font-normal">測点</th>
-          <th className="pb-2 pr-4 font-normal">X座標</th>
-          <th className="pb-2 pr-4 font-normal">Y座標</th>
-          <th className="pb-2 font-normal">境界標</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((c) => (
-          <tr key={c.point} className="border-b last:border-0">
-            <td className="py-2 pr-4 font-mono font-semibold text-gray-700">{c.point}</td>
-            <td className="py-2 pr-4 font-mono text-gray-600">{c.x.toFixed(3)}</td>
-            <td className="py-2 pr-4 font-mono text-gray-600">{c.y.toFixed(3)}</td>
-            <td className="py-2 text-gray-500">{c.marker_type ?? "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+import { type SurveyData } from "~/lib/dxf";
+import { SurveyResult } from "~/app/_components/SurveyResult";
 
 export default function Home() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -52,10 +19,7 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
 
   const saveMap = api.surveyMap.create.useMutation({
-    onSuccess: () => {
-      setSaved(true);
-      setShowSaveDialog(false);
-    },
+    onSuccess: () => { setSaved(true); setShowSaveDialog(false); },
     onError: (e) => setError(e.message),
   });
 
@@ -107,7 +71,6 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(result),
       });
-      if (!res.ok) throw new Error("DXF生成に失敗しました");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -115,8 +78,6 @@ export default function Home() {
       a.download = `${result.survey_metadata.location_id}.dxf`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "DXF出力エラー");
     } finally {
       setExporting(false);
     }
@@ -124,15 +85,8 @@ export default function Home() {
 
   const handleSave = () => {
     if (!result || !imageBase64) return;
-    saveMap.mutate({
-      name: saveName,
-      imageBase64,
-      imageMimeType: mimeType,
-      extractedData: result,
-    });
+    saveMap.mutate({ name: saveName, imageBase64, imageMimeType: mimeType, extractedData: result });
   };
-
-  const totalArea = result?.parcels.reduce((sum, p) => sum + p.area_m2, 0).toFixed(2);
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
@@ -145,17 +99,14 @@ export default function Home() {
             <p className="text-sm text-gray-500">地積測量図 OCR 解析</p>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href="/history"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
+            <Link href="/history" className="text-sm text-gray-500 hover:text-gray-700">
               履歴
             </Link>
             {result && (
               <button
                 onClick={handleExportDXF}
                 disabled={exporting}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -167,7 +118,7 @@ export default function Home() {
             {result && !saved && (
               <button
                 onClick={() => setShowSaveDialog(true)}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -176,9 +127,7 @@ export default function Home() {
                 保存
               </button>
             )}
-            {saved && (
-              <span className="text-sm font-medium text-green-600">✓ 保存済み</span>
-            )}
+            {saved && <span className="text-sm font-medium text-green-600">✓ 保存済み</span>}
           </div>
         </div>
 
@@ -235,7 +184,7 @@ export default function Home() {
           <button
             onClick={handleExtract}
             disabled={loading}
-            className="mb-8 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            className="mb-8 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
           >
             {loading ? "解析中..." : "解析する"}
           </button>
@@ -255,60 +204,8 @@ export default function Home() {
           <div className="mb-6 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>
         )}
 
-        {result && (
-          <div className="space-y-4">
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-400">基本情報</h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <MetaItem label="地番" value={result.survey_metadata.location_id} />
-                <MetaItem label="地積合計" value={`${totalArea} ㎡`} />
-                <MetaItem label="測量年月日" value={result.survey_metadata.survey_date} />
-                <MetaItem label="測地系" value={result.survey_metadata.geodetic_system} />
-                <MetaItem label="座標系" value={result.survey_metadata.coordinate_system ?? "—"} />
-                <MetaItem label="縮尺係数" value={String(result.survey_metadata.scale_factor)} />
-                {result.survey_metadata.surveyor && (
-                  <MetaItem label="測量士" value={result.survey_metadata.surveyor} />
-                )}
-                {result.survey_metadata.creator_organization && (
-                  <MetaItem label="作成者" value={result.survey_metadata.creator_organization} />
-                )}
-                {result.survey_metadata.applicant && (
-                  <MetaItem label="申請人" value={result.survey_metadata.applicant} />
-                )}
-              </div>
-            </section>
+        {result && <SurveyResult result={result} />}
 
-            {result.parcels.map((parcel) => (
-              <section key={parcel.parcel_id} className="rounded-xl bg-white p-6 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">{parcel.parcel_id}</h2>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
-                    {parcel.area_m2} ㎡
-                  </span>
-                </div>
-                <CoordTable rows={parcel.coordinates} />
-              </section>
-            ))}
-
-            {result.adjacent_parcels.length > 0 && (
-              <section className="rounded-xl bg-white p-6 shadow-sm">
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">隣接地番</h2>
-                <div className="flex flex-wrap gap-2">
-                  {result.adjacent_parcels.map((p) => (
-                    <span key={p} className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700">{p}</span>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {result.reference_points.length > 0 && (
-              <section className="rounded-xl bg-white p-6 shadow-sm">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-400">基準点</h2>
-                <CoordTable rows={result.reference_points} />
-              </section>
-            )}
-          </div>
-        )}
       </div>
     </main>
   );

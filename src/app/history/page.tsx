@@ -71,7 +71,7 @@ export default function HistoryPage() {
         )}
 
         <div className="space-y-3">
-          {records?.map((record) => {
+          {records?.map((record: typeof records[number]) => {
             const data = record.extractedData as SurveyData;
             const totalArea = data.parcels.reduce((sum, p) => sum + p.area_m2, 0).toFixed(2);
             const date = new Date(record.createdAt).toLocaleDateString("ja-JP");
@@ -80,14 +80,16 @@ export default function HistoryPage() {
               <div key={record.id} className="flex items-center gap-4 rounded-xl bg-white p-4 shadow-sm">
 
                 {/* サムネイル */}
-                <img
-                  src={record.imageUrl}
-                  alt={record.name}
-                  className="h-16 w-16 flex-shrink-0 rounded-lg object-cover"
-                />
+                <Link href={`/history/${record.id}`}>
+                  <img
+                    src={record.imageUrl}
+                    alt={record.name}
+                    className="h-16 w-16 flex-shrink-0 rounded-lg object-cover hover:opacity-80"
+                  />
+                </Link>
 
                 {/* 情報 */}
-                <div className="flex-1 min-w-0">
+                <Link href={`/history/${record.id}`} className="flex-1 min-w-0 hover:opacity-70">
                   <p className="font-semibold text-gray-800 truncate">{record.name}</p>
                   <p className="text-sm text-gray-500">{data.survey_metadata.location_id}</p>
                   <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
@@ -97,7 +99,7 @@ export default function HistoryPage() {
                     <span>·</span>
                     <span>保存日: {date}</span>
                   </div>
-                </div>
+                </Link>
 
                 {/* アクション */}
                 <div className="flex items-center gap-2 flex-shrink-0">
