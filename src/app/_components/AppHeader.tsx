@@ -31,7 +31,10 @@ export function AppHeader({
   actions = [],
   children,
 }: Props) {
-  const { data } = api.tenant.current.useQuery();
+  const { data } = api.tenant.session.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   return (
     <header

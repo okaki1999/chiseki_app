@@ -109,6 +109,72 @@ const methodLabel = (method: string | undefined) => {
   }
 };
 
+const roundArea = (value: number) => Number(value.toFixed(4));
+
+const calculateAreaFromNotes = (
+  notes: string | undefined,
+  method: string | undefined,
+) => {
+  if (!notes) {
+    return null;
+  }
+
+  if (method === "triangulation") {
+    const products = [
+      ...notes.matchAll(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/g),
+    ];
+    if (products.length === 0) {
+      return null;
+    }
+
+    const doubledArea = products.reduce((sum, match) => {
+      const width = Number(match[1]);
+      const height = Number(match[2]);
+      return sum + width * height;
+    }, 0);
+
+    return roundArea(doubledArea / 2);
+  }
+
+  if (method === "residual") {
+    const residual = /(\d+(?:\.\d+)?)\s*-\s*\(([^)]*)\)/.exec(notes);
+    if (!residual) {
+      return null;
+    }
+
+    const baseArea = Number(residual[1]);
+    const deductedAreaText = residual[2] ?? "";
+    const deductedAreas = [
+      ...deductedAreaText.matchAll(/\d+(?:\.\d+)?/g),
+    ].reduce((sum, match) => sum + Number(match[0]), 0);
+
+    return roundArea(baseArea - deductedAreas);
+  }
+
+  return null;
+};
+
+const nonCoordinateAreaValues = (
+  parcel: SurveyData["parcels"][number],
+  fallbackMethod: SurveyData["survey_metadata"]["calculation_method"],
+) => {
+  const method = parcel.calculation_method ?? fallbackMethod;
+  const calculatedArea = calculateAreaFromNotes(
+    parcel.calculation_notes,
+    method,
+  );
+  const difference =
+    calculatedArea === null ? null : roundArea(calculatedArea - parcel.area_m2);
+  const status =
+    calculatedArea === null
+      ? "対象外"
+      : Math.abs(difference ?? 0) <= 0.01
+        ? "OK"
+        : "要確認";
+
+  return { method, calculatedArea, difference, status };
+};
+
 function generateAreaOnlyCsv(data: SurveyData) {
   const areaChecks = getAreaChecks(data);
   const rows: (string | number | null | undefined)[][] = [
@@ -117,7 +183,7 @@ function generateAreaOnlyCsv(data: SurveyData) {
       "種別",
       "求積方式",
       "記載面積㎡",
-      "計算面積㎡",
+      "根拠計算面積㎡",
       "差分㎡",
       "判定",
       "計算式・根拠",
@@ -129,20 +195,18 @@ function generateAreaOnlyCsv(data: SurveyData) {
     const area = areaChecks.find(
       (check) => check.parcelId === parcel.parcel_id,
     );
-    const method =
-      parcel.calculation_method ?? data.survey_metadata.calculation_method;
+    const values = nonCoordinateAreaValues(
+      parcel,
+      data.survey_metadata.calculation_method,
+    );
     rows.push([
       parcel.parcel_id,
-      method === "residual" ? "残地" : "筆",
-      methodLabel(method),
+      values.method === "residual" ? "残地" : "筆",
+      methodLabel(values.method),
       parcel.area_m2,
-      area?.calculatedArea?.toFixed(3) ?? "",
-      area?.difference?.toFixed(3) ?? "",
-      area?.status === "skipped"
-        ? "対象外"
-        : area?.status === "ok"
-          ? "OK"
-          : "要確認",
+      values.calculatedArea?.toFixed(4) ?? "",
+      values.difference?.toFixed(4) ?? "",
+      values.status,
       parcel.calculation_notes ?? "",
       area?.reason ?? "",
     ]);
@@ -274,27 +338,24 @@ export async function generateSurveyWorkbookBuffer(
         const area = areaChecks.find(
           (check) => check.parcelId === parcel.parcel_id,
         );
-        const method =
-          parcel.calculation_method ?? data.survey_metadata.calculation_method;
+        const values = nonCoordinateAreaValues(
+          parcel,
+          data.survey_metadata.calculation_method,
+        );
         return {
           地番: parcel.parcel_id,
-          種別: method === "residual" ? "残地" : "筆",
-          求積方式: methodLabel(method),
+          種別: values.method === "residual" ? "残地" : "筆",
+          求積方式: methodLabel(values.method),
           "記載面積㎡": parcel.area_m2,
-          "計算面積㎡":
-            area?.calculatedArea === null || area?.calculatedArea === undefined
+          "根拠計算面積㎡":
+            values.calculatedArea === null
               ? ""
-              : Number(area.calculatedArea.toFixed(3)),
+              : Number(values.calculatedArea.toFixed(4)),
           "差分㎡":
-            area?.difference === null || area?.difference === undefined
+            values.difference === null
               ? ""
-              : Number(area.difference.toFixed(3)),
-          判定:
-            area?.status === "skipped"
-              ? "対象外"
-              : area?.status === "ok"
-                ? "OK"
-                : "要確認",
+              : Number(values.difference.toFixed(4)),
+          判定: values.status,
           "計算式・根拠": parcel.calculation_notes ?? "",
           備考: area?.reason ?? "",
         };

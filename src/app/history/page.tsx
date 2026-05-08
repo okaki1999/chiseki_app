@@ -7,6 +7,10 @@ import { api } from "~/trpc/react";
 import { type SurveyData } from "~/lib/dxf";
 import { getAuthHeaders } from "~/lib/auth-headers";
 import { AppHeader } from "~/app/_components/AppHeader";
+import {
+  hasAnyUsableCoordinates,
+  isCoordinateBasedSurvey,
+} from "~/lib/survey-validation";
 
 const isPdfUrl = (url: string) =>
   url.split("?")[0]?.toLowerCase().endsWith(".pdf") ?? false;
@@ -102,6 +106,8 @@ export default function HistoryPage() {
               .reduce((sum, p) => sum + p.area_m2, 0)
               .toFixed(2);
             const date = new Date(record.createdAt).toLocaleDateString("ja-JP");
+            const canExportSpatial =
+              hasAnyUsableCoordinates(data) && isCoordinateBasedSurvey(data);
 
             return (
               <div
@@ -201,23 +207,17 @@ export default function HistoryPage() {
                         "dxf",
                       )
                     }
-                    disabled={exportingId === `${record.id}-dxf`}
-                    className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    title="DXFを出力"
+                    disabled={
+                      exportingId === `${record.id}-dxf` || !canExportSpatial
+                    }
+                    className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      canExportSpatial
+                        ? "DXFを出力"
+                        : "三斜/残地求積はDXF出力の対象外です"
+                    }
                   >
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
+                    DXF
                   </button>
 
                   <button
@@ -261,9 +261,15 @@ export default function HistoryPage() {
                         "sima",
                       )
                     }
-                    disabled={exportingId === `${record.id}-sima`}
-                    className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    title="SIMAを出力"
+                    disabled={
+                      exportingId === `${record.id}-sima` || !canExportSpatial
+                    }
+                    className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      canExportSpatial
+                        ? "SIMAを出力"
+                        : "三斜/残地求積はSIMA出力の対象外です"
+                    }
                   >
                     SIMA
                   </button>

@@ -68,28 +68,32 @@ export async function resolveAppSession(
   const tenantName = email.split("@")[0]
     ? `${email.split("@")[0]} のテナント`
     : "Default Tenant";
-  const existingUserCount = await db.user.count();
-  const appUser = await db.user.upsert({
+  const name =
+    authUser.user_metadata?.name ?? authUser.user_metadata?.full_name ?? null;
+  const existingUser = await db.user.findUnique({
     where: { supabaseUserId: authUser.id },
-    update: {
-      email,
-      name:
-        authUser.user_metadata?.name ??
-        authUser.user_metadata?.full_name ??
-        null,
-    },
-    create: {
-      supabaseUserId: authUser.id,
-      email,
-      name:
-        authUser.user_metadata?.name ??
-        authUser.user_metadata?.full_name ??
-        null,
-    },
   });
+  const appUser = existingUser
+    ? existingUser.email !== email || existingUser.name !== name
+      ? await db.user.update({
+          where: { id: existingUser.id },
+          data: { email, name },
+        })
+      : existingUser
+    : await db.user.create({
+        data: {
+          supabaseUserId: authUser.id,
+          email,
+          name,
+        },
+      });
 
-  const firstUserRole: AppRole =
-    existingUserCount === 0 ? "SUPER_ADMIN" : "TENANT_ADMIN";
+  const firstUserRole: AppRole = existingUser
+    ? "TENANT_ADMIN"
+    : (await db.user.count()) === 1
+      ? "SUPER_ADMIN"
+      : "TENANT_ADMIN";
+
   const membership = await db.tenantMember.findFirst({
     where: { userId: appUser.id },
     include: { tenant: true },
@@ -97,11 +101,6 @@ export async function resolveAppSession(
   });
 
   if (membership) {
-    await db.surveyMap.updateMany({
-      where: { tenantId: null },
-      data: { tenantId: membership.tenantId },
-    });
-
     return {
       user: appUser,
       tenant: membership.tenant,

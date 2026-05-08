@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import iconv from "iconv-lite";
 import { generateDXF, type SurveyData } from "~/lib/dxf";
+import {
+  hasAnyUsableCoordinates,
+  isCoordinateBasedSurvey,
+} from "~/lib/survey-validation";
 import { recordActivity } from "~/server/activity";
 import { resolveAppSession } from "~/server/auth";
 import { db } from "~/server/db";
@@ -16,6 +20,13 @@ export async function POST(req: NextRequest) {
     }
 
     const data = (await req.json()) as SurveyData;
+    if (!hasAnyUsableCoordinates(data) || !isCoordinateBasedSurvey(data)) {
+      return NextResponse.json(
+        { error: "三斜/残地求積はDXF出力の対象外です" },
+        { status: 400 },
+      );
+    }
+
     const dxf = generateDXF(data);
 
     // CADソフトはShift-JISを期待するためエンコード変換

@@ -2,6 +2,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import iconv from "iconv-lite";
 import { type SurveyData } from "~/lib/dxf";
 import { generateSIMA } from "~/lib/sima";
+import {
+  hasAnyUsableCoordinates,
+  isCoordinateBasedSurvey,
+} from "~/lib/survey-validation";
 import { recordActivity } from "~/server/activity";
 import { resolveAppSession } from "~/server/auth";
 import { db } from "~/server/db";
@@ -17,6 +21,13 @@ export async function POST(req: NextRequest) {
     }
 
     const data = (await req.json()) as SurveyData;
+    if (!hasAnyUsableCoordinates(data) || !isCoordinateBasedSurvey(data)) {
+      return NextResponse.json(
+        { error: "三斜/残地求積はSIMA出力の対象外です" },
+        { status: 400 },
+      );
+    }
+
     const sima = generateSIMA(data);
     const buffer = iconv.encode(sima, "Shift_JIS");
     const filename = `${data.survey_metadata.location_id}.sim`;

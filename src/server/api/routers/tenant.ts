@@ -22,6 +22,12 @@ const requireTenantAdmin = (role: AppRole) => {
 };
 
 export const tenantRouter = createTRPCRouter({
+  session: protectedProcedure.query(({ ctx }) => ({
+    tenant: ctx.session.tenant,
+    role: ctx.session.role,
+    user: ctx.session.user,
+  })),
+
   current: protectedProcedure.query(async ({ ctx }) => {
     const tenant = await ctx.db.tenant.findUnique({
       where: { id: ctx.session.tenant.id },
