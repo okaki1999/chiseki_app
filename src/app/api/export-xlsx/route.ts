@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { type SurveyData } from "~/lib/dxf";
 import { generateSurveyWorkbookBuffer } from "~/lib/export-tabular";
+import { recordActivity } from "~/server/activity";
 import { resolveAppSession } from "~/server/auth";
 import { db } from "~/server/db";
 
@@ -17,6 +18,12 @@ export async function POST(req: NextRequest) {
     const data = (await req.json()) as SurveyData;
     const buffer = await generateSurveyWorkbookBuffer(data);
     const filename = `${data.survey_metadata.location_id}.xlsx`;
+    await recordActivity({
+      session,
+      action: "export.xlsx",
+      metadata: { locationId: data.survey_metadata.location_id },
+      usage: true,
+    });
 
     return new NextResponse(buffer, {
       headers: {

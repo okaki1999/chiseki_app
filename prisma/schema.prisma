@@ -46,6 +46,8 @@ model User {
 
   memberships TenantMember[]
   surveyMaps  SurveyMap[]
+  usageEvents UsageEvent[]
+  auditLogs   AuditLog[]
 
   @@index([email])
 }
@@ -56,8 +58,10 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members    TenantMember[]
-  surveyMaps SurveyMap[]
+  members     TenantMember[]
+  surveyMaps  SurveyMap[]
+  usageEvents UsageEvent[]
+  auditLogs   AuditLog[]
 }
 
 model TenantMember {
@@ -81,4 +85,39 @@ enum AppRole {
   TENANT_ADMIN
   MEMBER
   VIEWER
+}
+
+model UsageEvent {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, action, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  userId     String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
 }

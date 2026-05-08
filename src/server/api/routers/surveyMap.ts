@@ -3,6 +3,7 @@ import path from "path";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { canDeleteSurveyMap, canWriteSurveyMap } from "~/server/auth";
+import { recordActivity } from "~/server/activity";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { env } from "~/env";
 import { getSupabase, STORAGE_BUCKET } from "~/lib/supabase";
@@ -75,7 +76,7 @@ export const surveyMapRouter = createTRPCRouter({
         input.imageBase64,
         input.imageMimeType,
       );
-      return ctx.db.surveyMap.create({
+      const record = await ctx.db.surveyMap.create({
         data: {
           tenantId: ctx.session.tenant.id,
           name: input.name,
@@ -84,6 +85,16 @@ export const surveyMapRouter = createTRPCRouter({
           createdById: ctx.session.user.id,
         },
       });
+
+      await recordActivity({
+        session: ctx.session,
+        action: "survey_map.create",
+        targetType: "survey_map",
+        targetId: record.id,
+        metadata: { name: record.name },
+      });
+
+      return record;
     }),
 
   getById: protectedProcedure
@@ -146,7 +157,7 @@ export const surveyMapRouter = createTRPCRouter({
           message: "レコードが見つかりません",
         });
 
-      return ctx.db.surveyMap.update({
+      const updated = await ctx.db.surveyMap.update({
         where: { id: input.id },
         data: {
           ...(input.name !== undefined && { name: input.name }),
@@ -155,6 +166,19 @@ export const surveyMapRouter = createTRPCRouter({
           }),
         },
       });
+
+      await recordActivity({
+        session: ctx.session,
+        action: "survey_map.update",
+        targetType: "survey_map",
+        targetId: updated.id,
+        metadata: {
+          nameChanged: input.name !== undefined,
+          dataChanged: input.extractedData !== undefined,
+        },
+      });
+
+      return updated;
     }),
 
   delete: protectedProcedure
@@ -181,6 +205,18 @@ export const surveyMapRouter = createTRPCRouter({
           message: "レコードが見つかりません",
         });
       await deleteImage(record.imageUrl);
-      return ctx.db.surveyMap.delete({ where: { id: input.id } });
+      const deleted = await ctx.db.surveyMap.delete({
+        where: { id: input.id },
+      });
+
+      await recordActivity({
+        session: ctx.session,
+        action: "survey_map.delete",
+        targetType: "survey_map",
+        targetId: deleted.id,
+        metadata: { name: deleted.name },
+      });
+
+      return deleted;
     }),
 });

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import iconv from "iconv-lite";
 import { generateDXF, type SurveyData } from "~/lib/dxf";
+import { recordActivity } from "~/server/activity";
 import { resolveAppSession } from "~/server/auth";
 import { db } from "~/server/db";
 
@@ -20,6 +21,12 @@ export async function POST(req: NextRequest) {
     // CADソフトはShift-JISを期待するためエンコード変換
     const buffer = iconv.encode(dxf, "Shift_JIS");
     const filename = `${data.survey_metadata.location_id}.dxf`;
+    await recordActivity({
+      session,
+      action: "export.dxf",
+      metadata: { locationId: data.survey_metadata.location_id },
+      usage: true,
+    });
 
     return new NextResponse(buffer, {
       headers: {

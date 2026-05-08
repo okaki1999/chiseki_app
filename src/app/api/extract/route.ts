@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { env } from "~/env";
+import { recordActivity } from "~/server/activity";
 import { resolveAppSession } from "~/server/auth";
 import { db } from "~/server/db";
 
@@ -106,6 +107,12 @@ export async function POST(req: NextRequest) {
 
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const parsed = JSON.parse(text) as unknown;
+    await recordActivity({
+      session,
+      action: "ocr.extract",
+      metadata: { mimeType: body.mimeType },
+      usage: true,
+    });
     return NextResponse.json(parsed);
   } catch {
     return NextResponse.json(

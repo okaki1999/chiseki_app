@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { generateSurveyCsv } from "~/lib/export-tabular";
 import { type SurveyData } from "~/lib/dxf";
+import { recordActivity } from "~/server/activity";
 import { resolveAppSession } from "~/server/auth";
 import { db } from "~/server/db";
 
@@ -17,6 +18,12 @@ export async function POST(req: NextRequest) {
     const data = (await req.json()) as SurveyData;
     const csv = generateSurveyCsv(data);
     const filename = `${data.survey_metadata.location_id}.csv`;
+    await recordActivity({
+      session,
+      action: "export.csv",
+      metadata: { locationId: data.survey_metadata.location_id },
+      usage: true,
+    });
 
     return new NextResponse(csv, {
       headers: {

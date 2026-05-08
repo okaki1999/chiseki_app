@@ -31,6 +31,11 @@ export const canWriteSurveyMap = (role: AppRole) =>
 export const canDeleteSurveyMap = (role: AppRole) =>
   role === "SUPER_ADMIN" || role === "TENANT_ADMIN";
 
+export const canManageTenant = (role: AppRole) =>
+  role === "SUPER_ADMIN" || role === "TENANT_ADMIN";
+
+export const isSuperAdmin = (role: AppRole) => role === "SUPER_ADMIN";
+
 const extractBearerToken = (headers: Headers) => {
   const authorization = headers.get("authorization");
   const match = /^Bearer\s+(.+)$/i.exec(authorization ?? "");
