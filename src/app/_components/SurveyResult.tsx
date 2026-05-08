@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import maplibregl, { type GeoJSONSource } from "maplibre-gl";
+import proj4 from "proj4";
 import { type SurveyData, type Coordinate } from "~/lib/dxf";
 
 function MetaItem({ label, value }: { label: string; value: string }) {
@@ -148,6 +150,320 @@ const PREVIEW_COLORS = [
   { stroke: "#9333ea", fill: "#f3e8ff" },
   { stroke: "#0891b2", fill: "#cffafe" },
 ] as const;
+
+type PlaneCoordinateSystem = {
+  code: number;
+  lat0: number;
+  lon0: number;
+};
+
+const PLANE_COORDINATE_SYSTEMS: PlaneCoordinateSystem[] = [
+  { code: 1, lat0: 33, lon0: 129.5 },
+  { code: 2, lat0: 33, lon0: 131 },
+  { code: 3, lat0: 36, lon0: 132 + 10 / 60 },
+  { code: 4, lat0: 33, lon0: 133.5 },
+  { code: 5, lat0: 36, lon0: 134 + 20 / 60 },
+  { code: 6, lat0: 36, lon0: 136 },
+  { code: 7, lat0: 36, lon0: 137 + 10 / 60 },
+  { code: 8, lat0: 36, lon0: 138.5 },
+  { code: 9, lat0: 36, lon0: 139 + 50 / 60 },
+  { code: 10, lat0: 40, lon0: 140 + 50 / 60 },
+  { code: 11, lat0: 44, lon0: 140.25 },
+  { code: 12, lat0: 44, lon0: 142.25 },
+  { code: 13, lat0: 44, lon0: 144.25 },
+  { code: 14, lat0: 26, lon0: 142 },
+  { code: 15, lat0: 26, lon0: 127.5 },
+  { code: 16, lat0: 26, lon0: 124 },
+  { code: 17, lat0: 26, lon0: 131 },
+  { code: 18, lat0: 20, lon0: 136 },
+  { code: 19, lat0: 26, lon0: 154 },
+];
+
+const ROMAN_SYSTEMS = new Map([
+  ["I", 1],
+  ["II", 2],
+  ["III", 3],
+  ["IV", 4],
+  ["V", 5],
+  ["VI", 6],
+  ["VII", 7],
+  ["VIII", 8],
+  ["IX", 9],
+  ["X", 10],
+  ["XI", 11],
+  ["XII", 12],
+  ["XIII", 13],
+  ["XIV", 14],
+  ["XV", 15],
+  ["XVI", 16],
+  ["XVII", 17],
+  ["XVIII", 18],
+  ["XIX", 19],
+]);
+
+const toHalfWidthDigits = (value: string) =>
+  value.replace(/[０-９]/g, (char) =>
+    String.fromCharCode(char.charCodeAt(0) - 0xfee0),
+  );
+
+const inferCoordinateSystem = (value?: string) => {
+  if (!value) return undefined;
+  const normalized = toHalfWidthDigits(value).toUpperCase();
+  const digitMatch = /(?:第)?\s*(1[0-9]|[1-9])\s*(?:系|KEI)?/.exec(
+    normalized,
+  );
+  const digit = digitMatch?.[1] ? Number(digitMatch[1]) : undefined;
+  if (digit && digit >= 1 && digit <= 19) return digit;
+
+  for (const [roman, code] of [...ROMAN_SYSTEMS.entries()].sort(
+    (a, b) => b[0].length - a[0].length,
+  )) {
+    if (normalized.includes(roman)) return code;
+  }
+  return undefined;
+};
+
+for (const system of PLANE_COORDINATE_SYSTEMS) {
+  proj4.defs(
+    `JPRCS:${system.code}`,
+    `+proj=tmerc +lat_0=${system.lat0} +lon_0=${system.lon0} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs`,
+  );
+}
+
+function toLngLat(point: Coordinate, systemCode: number): [number, number] {
+  // 測量座標は X=北方向、Y=東方向。proj4の横メルカトルは [easting, northing] で渡す。
+  const [lng, lat] = proj4(`JPRCS:${systemCode}`, "EPSG:4326", [
+    point.y,
+    point.x,
+  ]);
+  return [lng, lat];
+}
+
+function SurveyMapPreview({ data }: { data: SurveyData }) {
+  const inferredSystem = inferCoordinateSystem(
+    data.survey_metadata.coordinate_system,
+  );
+  const [selectedSystem, setSelectedSystem] = useState(inferredSystem ?? 9);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+
+  useEffect(() => {
+    setSelectedSystem(inferredSystem ?? 9);
+  }, [inferredSystem]);
+
+  const geojson = useMemo(() => {
+    const features = data.parcels
+      .map((parcel, index) => {
+        const ring = parcel.coordinates
+          .filter(
+            (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+          )
+          .map((point) => toLngLat(point, selectedSystem));
+
+        if (ring.length < 3) return null;
+
+        const first = ring[0]!;
+        const last = ring[ring.length - 1]!;
+        const coordinates =
+          first[0] === last[0] && first[1] === last[1]
+            ? ring
+            : [...ring, first];
+
+        return {
+          type: "Feature" as const,
+          properties: {
+            parcelId: parcel.parcel_id,
+            color: PREVIEW_COLORS[index % PREVIEW_COLORS.length]!.stroke,
+          },
+          geometry: {
+            type: "Polygon" as const,
+            coordinates: [coordinates],
+          },
+        };
+      })
+      .filter(
+        (feature): feature is NonNullable<typeof feature> => feature !== null,
+      );
+
+    const pointFeatures = data.parcels.flatMap((parcel, parcelIndex) =>
+      parcel.coordinates
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+        .map((point) => ({
+          type: "Feature" as const,
+          properties: {
+            point: point.point,
+            color: PREVIEW_COLORS[parcelIndex % PREVIEW_COLORS.length]!.stroke,
+          },
+          geometry: {
+            type: "Point" as const,
+            coordinates: toLngLat(point, selectedSystem),
+          },
+        })),
+    );
+
+    return {
+      type: "FeatureCollection" as const,
+      features: [...features, ...pointFeatures],
+    };
+  }, [data.parcels, selectedSystem]);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          gsi: {
+            type: "raster",
+            tiles: ["https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution:
+              '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener noreferrer">地理院タイル</a>',
+          },
+        },
+        layers: [{ id: "gsi", type: "raster", source: "gsi" }],
+      },
+      center: [139.767, 35.681],
+      zoom: 16,
+      attributionControl: { compact: true },
+    });
+
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: true }),
+      "top-right",
+    );
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const updateData = () => {
+      const existingSource = map.getSource<GeoJSONSource>("survey-map");
+      if (existingSource) {
+        existingSource.setData(geojson);
+      } else {
+        map.addSource("survey-map", { type: "geojson", data: geojson });
+        map.addLayer({
+          id: "survey-fill",
+          type: "fill",
+          source: "survey-map",
+          filter: ["==", ["geometry-type"], "Polygon"],
+          paint: {
+            "fill-color": ["get", "color"],
+            "fill-opacity": 0.28,
+          },
+        });
+        map.addLayer({
+          id: "survey-outline",
+          type: "line",
+          source: "survey-map",
+          filter: ["==", ["geometry-type"], "Polygon"],
+          paint: {
+            "line-color": ["get", "color"],
+            "line-width": 3,
+          },
+        });
+        map.addLayer({
+          id: "survey-points",
+          type: "circle",
+          source: "survey-map",
+          filter: ["==", ["geometry-type"], "Point"],
+          paint: {
+            "circle-color": ["get", "color"],
+            "circle-radius": 5,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
+          },
+        });
+        map.addLayer({
+          id: "survey-point-labels",
+          type: "symbol",
+          source: "survey-map",
+          filter: ["==", ["geometry-type"], "Point"],
+          layout: {
+            "text-field": ["get", "point"],
+            "text-offset": [0.7, -0.7],
+            "text-size": 12,
+            "text-anchor": "bottom-left",
+          },
+          paint: {
+            "text-color": "#111827",
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.5,
+          },
+        });
+      }
+
+      const coordinates = geojson.features.flatMap((feature) => {
+        if (feature.geometry.type === "Point")
+          return [feature.geometry.coordinates];
+        return feature.geometry.coordinates.flat();
+      });
+
+      if (coordinates.length > 0) {
+        const bounds = coordinates.reduce(
+          (nextBounds, coordinate) => nextBounds.extend(coordinate),
+          new maplibregl.LngLatBounds(coordinates[0], coordinates[0]),
+        );
+        map.fitBounds(bounds, {
+          padding: 72,
+          maxZoom: 20,
+          duration: 400,
+        });
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      updateData();
+    } else {
+      void map.once("load", updateData);
+    }
+  }, [geojson]);
+
+  return (
+    <section className="rounded-xl bg-white p-6 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
+            地図プレビュー
+          </h2>
+          {inferredSystem && (
+            <p className="mt-1 text-xs text-gray-400">
+              OCR推定: 第{inferredSystem}系
+            </p>
+          )}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          座標系
+          <select
+            value={selectedSystem}
+            onChange={(event) => setSelectedSystem(Number(event.target.value))}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+          >
+            {PLANE_COORDINATE_SYSTEMS.map((system) => (
+              <option key={system.code} value={system.code}>
+                第{system.code}系
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div
+        ref={mapContainerRef}
+        className="h-[420px] overflow-hidden rounded-lg border border-gray-100"
+      />
+    </section>
+  );
+}
 
 function SurveyShapePreview({ data }: { data: SurveyData }) {
   const width = 720;
@@ -637,6 +953,8 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
           )}
         </div>
       </section>
+
+      <SurveyMapPreview data={displayData} />
 
       <SurveyShapePreview data={displayData} />
 
