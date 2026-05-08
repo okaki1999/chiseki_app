@@ -3,6 +3,11 @@ import { type AppRole } from "@prisma/client";
 import { z } from "zod";
 import { canManageTenant } from "~/server/auth";
 import { recordActivity } from "~/server/activity";
+import {
+  attachUserToTenant,
+  createAuthBackedUser,
+  updateAuthBackedUser,
+} from "~/server/user-management";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
 const roleSchema = z.enum(["TENANT_ADMIN", "MEMBER", "VIEWER"]);
@@ -56,66 +61,33 @@ export const tenantRouter = createTRPCRouter({
     };
   }),
 
-  updateName: protectedProcedure
-    .input(z.object({ name: z.string().min(1).max(80) }))
-    .mutation(async ({ ctx, input }) => {
-      requireTenantAdmin(ctx.session.role);
-
-      const tenant = await ctx.db.tenant.update({
-        where: { id: ctx.session.tenant.id },
-        data: { name: input.name },
-      });
-
-      await recordActivity({
-        session: ctx.session,
-        action: "tenant.update_name",
-        targetType: "tenant",
-        targetId: tenant.id,
-        metadata: { name: input.name },
-      });
-
-      return tenant;
-    }),
-
-  addMemberByEmail: protectedProcedure
+  createMember: protectedProcedure
     .input(
       z.object({
         email: z.string().email(),
+        password: z.string().min(8),
+        name: z.string().max(80).optional(),
         role: roleSchema.default("MEMBER"),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       requireTenantAdmin(ctx.session.role);
 
-      const user = await ctx.db.user.findUnique({
-        where: { email: input.email },
+      const user = await createAuthBackedUser(ctx.db, {
+        email: input.email,
+        password: input.password,
+        name: input.name ?? null,
       });
-      if (!user) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "このメールアドレスのユーザーはまだ登録されていません",
-        });
-      }
-
-      const member = await ctx.db.tenantMember.upsert({
-        where: {
-          tenantId_userId: {
-            tenantId: ctx.session.tenant.id,
-            userId: user.id,
-          },
-        },
-        update: { role: input.role },
-        create: {
-          tenantId: ctx.session.tenant.id,
-          userId: user.id,
-          role: input.role,
-        },
-        include: { user: true },
-      });
+      const member = await attachUserToTenant(
+        ctx.db,
+        ctx.session.tenant.id,
+        user.id,
+        input.role,
+      );
 
       await recordActivity({
         session: ctx.session,
-        action: "tenant.member_add",
+        action: "tenant.member_create",
         targetType: "user",
         targetId: user.id,
         metadata: { email: user.email, role: input.role },
@@ -124,8 +96,16 @@ export const tenantRouter = createTRPCRouter({
       return member;
     }),
 
-  updateMemberRole: protectedProcedure
-    .input(z.object({ memberId: z.string(), role: roleSchema }))
+  updateMember: protectedProcedure
+    .input(
+      z.object({
+        memberId: z.string(),
+        email: z.string().email(),
+        password: z.string().min(8).optional().or(z.literal("")),
+        name: z.string().max(80).optional(),
+        role: roleSchema,
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       requireTenantAdmin(ctx.session.role);
 
@@ -143,6 +123,11 @@ export const tenantRouter = createTRPCRouter({
         });
       }
 
+      const user = await updateAuthBackedUser(ctx.db, member.userId, {
+        email: input.email,
+        password: input.password === "" ? undefined : input.password,
+        name: input.name ?? null,
+      });
       const updated = await ctx.db.tenantMember.update({
         where: { id: input.memberId },
         data: { role: input.role },
@@ -151,13 +136,15 @@ export const tenantRouter = createTRPCRouter({
 
       await recordActivity({
         session: ctx.session,
-        action: "tenant.member_role_update",
+        action: "tenant.member_update",
         targetType: "user",
         targetId: member.userId,
         metadata: {
-          email: member.user.email,
-          before: member.role,
-          after: input.role,
+          beforeEmail: member.user.email,
+          afterEmail: user.email,
+          beforeRole: member.role,
+          afterRole: input.role,
+          passwordChanged: Boolean(input.password),
         },
       });
 

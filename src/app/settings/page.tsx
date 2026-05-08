@@ -2,59 +2,68 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { type AppRole } from "@prisma/client";
 import { api } from "~/trpc/react";
 import { UserMenu } from "~/app/_components/UserMenu";
 
-const roleLabel = {
+const roleLabel: Record<AppRole, string> = {
   SUPER_ADMIN: "全管理者",
   TENANT_ADMIN: "テナント管理者",
   MEMBER: "一般ユーザー",
   VIEWER: "閲覧者",
-} as const;
+};
 
 const manageableRoles = ["TENANT_ADMIN", "MEMBER", "VIEWER"] as const;
+
+type EditingMember = {
+  id: string;
+  email: string;
+  name: string;
+  password: string;
+  role: (typeof manageableRoles)[number];
+};
 
 export default function SettingsPage() {
   const utils = api.useUtils();
   const { data, isLoading, error } = api.tenant.current.useQuery();
-  const [tenantName, setTenantName] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] =
-    useState<(typeof manageableRoles)[number]>("MEMBER");
   const [message, setMessage] = useState<string | null>(null);
+  const [newUser, setNewUser] = useState({
+    email: "",
+    name: "",
+    password: "",
+    role: "MEMBER" as (typeof manageableRoles)[number],
+  });
+  const [editing, setEditing] = useState<EditingMember | null>(null);
 
   const canManage =
     data?.role === "SUPER_ADMIN" || data?.role === "TENANT_ADMIN";
 
-  const updateName = api.tenant.updateName.useMutation({
+  const refresh = async () => {
+    await utils.tenant.current.invalidate();
+  };
+
+  const createMember = api.tenant.createMember.useMutation({
     onSuccess: async () => {
-      setMessage("テナント名を更新しました");
-      await utils.tenant.current.invalidate();
+      setNewUser({ email: "", name: "", password: "", role: "MEMBER" });
+      setMessage("ユーザーを追加しました");
+      await refresh();
     },
     onError: (e) => setMessage(e.message),
   });
 
-  const addMember = api.tenant.addMemberByEmail.useMutation({
+  const updateMember = api.tenant.updateMember.useMutation({
     onSuccess: async () => {
-      setInviteEmail("");
-      setMessage("メンバーを追加しました");
-      await utils.tenant.current.invalidate();
-    },
-    onError: (e) => setMessage(e.message),
-  });
-
-  const updateRole = api.tenant.updateMemberRole.useMutation({
-    onSuccess: async () => {
-      setMessage("ロールを更新しました");
-      await utils.tenant.current.invalidate();
+      setEditing(null);
+      setMessage("ユーザーを更新しました");
+      await refresh();
     },
     onError: (e) => setMessage(e.message),
   });
 
   const removeMember = api.tenant.removeMember.useMutation({
     onSuccess: async () => {
-      setMessage("メンバーを削除しました");
-      await utils.tenant.current.invalidate();
+      setMessage("ユーザーをテナントから削除しました");
+      await refresh();
     },
     onError: (e) => setMessage(e.message),
   });
@@ -70,7 +79,7 @@ export default function SettingsPage() {
               テナント管理
             </h1>
             <p className="text-sm text-gray-500">
-              メンバー、ロール、利用状況を管理
+              自テナントに紐づくユーザーを管理
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -95,7 +104,6 @@ export default function SettingsPage() {
             読み込み中...
           </div>
         )}
-
         {error && (
           <div className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
             {error.message}
@@ -111,10 +119,10 @@ export default function SettingsPage() {
             )}
 
             <section className="rounded-xl bg-white p-6 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                    組織
+                    テナント
                   </h2>
                   <p className="mt-1 text-xl font-semibold text-gray-900">
                     {tenant.name}
@@ -124,35 +132,12 @@ export default function SettingsPage() {
                   あなた: {roleLabel[data.role]}
                 </span>
               </div>
-
-              {canManage && (
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    value={tenantName}
-                    onChange={(e) => setTenantName(e.target.value)}
-                    placeholder={tenant.name}
-                    className="min-w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateName.mutate({
-                        name: tenantName.trim() || tenant.name,
-                      })
-                    }
-                    disabled={updateName.isPending}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    更新
-                  </button>
-                </div>
-              )}
             </section>
 
             <section className="rounded-xl bg-white p-6 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                  メンバー
+                  ユーザー
                 </h2>
                 <span className="text-sm text-gray-500">
                   {tenant.members.length}人
@@ -160,19 +145,42 @@ export default function SettingsPage() {
               </div>
 
               {canManage && (
-                <div className="mb-5 flex flex-wrap gap-2 rounded-lg bg-gray-50 p-3">
+                <div className="mb-5 grid gap-2 rounded-lg bg-gray-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto_auto]">
                   <input
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="追加するユーザーのメール"
-                    className="min-w-72 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    value={newUser.email}
+                    onChange={(e) =>
+                      setNewUser((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                    placeholder="メール"
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                  />
+                  <input
+                    value={newUser.name}
+                    onChange={(e) =>
+                      setNewUser((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    placeholder="名前"
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                  />
+                  <input
+                    value={newUser.password}
+                    onChange={(e) =>
+                      setNewUser((prev) => ({
+                        ...prev,
+                        password: e.target.value,
+                      }))
+                    }
+                    placeholder="初期パスワード"
+                    type="password"
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
                   />
                   <select
-                    value={inviteRole}
+                    value={newUser.role}
                     onChange={(e) =>
-                      setInviteRole(
-                        e.target.value as (typeof manageableRoles)[number],
-                      )
+                      setNewUser((prev) => ({
+                        ...prev,
+                        role: e.target.value as typeof newUser.role,
+                      }))
                     }
                     className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
                   >
@@ -184,13 +192,12 @@ export default function SettingsPage() {
                   </select>
                   <button
                     type="button"
-                    onClick={() =>
-                      addMember.mutate({
-                        email: inviteEmail.trim(),
-                        role: inviteRole,
-                      })
+                    onClick={() => createMember.mutate(newUser)}
+                    disabled={
+                      createMember.isPending ||
+                      !newUser.email.trim() ||
+                      newUser.password.length < 8
                     }
-                    disabled={addMember.isPending || !inviteEmail.trim()}
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                   >
                     追加
@@ -202,111 +209,176 @@ export default function SettingsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-gray-400">
-                      <th className="pr-4 pb-2 font-normal">ユーザー</th>
+                      <th className="pr-4 pb-2 font-normal">メール</th>
+                      <th className="pr-4 pb-2 font-normal">名前</th>
                       <th className="pr-4 pb-2 font-normal">ロール</th>
                       <th className="pb-2 font-normal">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tenant.members.map((member) => (
-                      <tr key={member.id} className="border-b last:border-0">
-                        <td className="py-3 pr-4">
-                          <p className="font-medium text-gray-800">
-                            {member.user.name ?? member.user.email}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {member.user.email}
-                          </p>
-                        </td>
-                        <td className="py-3 pr-4">
-                          {canManage &&
-                          member.role !== "SUPER_ADMIN" &&
-                          member.userId !== data.currentUserId ? (
-                            <select
-                              value={member.role}
-                              onChange={(e) =>
-                                updateRole.mutate({
-                                  memberId: member.id,
-                                  role: e.target
-                                    .value as (typeof manageableRoles)[number],
-                                })
-                              }
-                              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
-                            >
-                              {manageableRoles.map((role) => (
-                                <option key={role} value={role}>
-                                  {roleLabel[role]}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
-                              {roleLabel[member.role]}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3">
-                          {canManage &&
-                            member.userId !== data.currentUserId && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `${member.user.email} を削除しますか？`,
-                                    )
-                                  ) {
-                                    removeMember.mutate({
-                                      memberId: member.id,
-                                    });
-                                  }
-                                }}
-                                className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-red-50 hover:text-red-600"
-                              >
-                                削除
-                              </button>
+                    {tenant.members.map((member) => {
+                      const isEditing = editing?.id === member.id;
+                      return (
+                        <tr key={member.id} className="border-b last:border-0">
+                          <td className="py-3 pr-4">
+                            {isEditing ? (
+                              <input
+                                value={editing.email}
+                                onChange={(e) =>
+                                  setEditing((prev) =>
+                                    prev
+                                      ? { ...prev, email: e.target.value }
+                                      : prev,
+                                  )
+                                }
+                                className="w-56 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                              />
+                            ) : (
+                              <span className="font-medium text-gray-800">
+                                {member.user.email}
+                              </span>
                             )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-3 pr-4">
+                            {isEditing ? (
+                              <input
+                                value={editing.name}
+                                onChange={(e) =>
+                                  setEditing((prev) =>
+                                    prev
+                                      ? { ...prev, name: e.target.value }
+                                      : prev,
+                                  )
+                                }
+                                className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                              />
+                            ) : (
+                              <span className="text-gray-600">
+                                {member.user.name ?? "-"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4">
+                            {isEditing ? (
+                              <select
+                                value={editing.role}
+                                onChange={(e) =>
+                                  setEditing((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          role: e.target
+                                            .value as EditingMember["role"],
+                                        }
+                                      : prev,
+                                  )
+                                }
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                              >
+                                {manageableRoles.map((role) => (
+                                  <option key={role} value={role}>
+                                    {roleLabel[role]}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
+                                {roleLabel[member.role]}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            {canManage &&
+                              member.userId !== data.currentUserId && (
+                                <div className="flex flex-wrap gap-2">
+                                  {isEditing ? (
+                                    <>
+                                      <input
+                                        value={editing.password}
+                                        onChange={(e) =>
+                                          setEditing((prev) =>
+                                            prev
+                                              ? {
+                                                  ...prev,
+                                                  password: e.target.value,
+                                                }
+                                              : prev,
+                                          )
+                                        }
+                                        placeholder="新PW 空なら維持"
+                                        type="password"
+                                        className="w-36 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateMember.mutate({
+                                            memberId: editing.id,
+                                            email: editing.email,
+                                            name: editing.name,
+                                            password: editing.password,
+                                            role: editing.role,
+                                          })
+                                        }
+                                        className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white"
+                                      >
+                                        保存
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditing(null)}
+                                        className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500"
+                                      >
+                                        取消
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setEditing({
+                                            id: member.id,
+                                            email: member.user.email,
+                                            name: member.user.name ?? "",
+                                            password: "",
+                                            role:
+                                              member.role === "SUPER_ADMIN"
+                                                ? "TENANT_ADMIN"
+                                                : member.role,
+                                          })
+                                        }
+                                        className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                                      >
+                                        編集
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (
+                                            confirm(
+                                              `${member.user.email} をこのテナントから削除しますか？`,
+                                            )
+                                          ) {
+                                            removeMember.mutate({
+                                              memberId: member.id,
+                                            });
+                                          }
+                                        }}
+                                        className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-red-50 hover:text-red-600"
+                                      >
+                                        削除
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                利用状況
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg bg-gray-50 p-4">
-                  <p className="text-xs text-gray-400">保存図面</p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    {tenant._count.surveyMaps}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-gray-50 p-4">
-                  <p className="text-xs text-gray-400">利用イベント</p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    {tenant._count.usageEvents}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-gray-50 p-4">
-                  <p className="text-xs text-gray-400">メンバー</p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">
-                    {tenant.members.length}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {data.usageByAction.map((item) => (
-                  <span
-                    key={item.action}
-                    className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700"
-                  >
-                    {item.action}: {item._count._all}
-                  </span>
-                ))}
               </div>
             </section>
           </div>
