@@ -33,7 +33,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-sm">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Zahyoc</h1>
+          <h1 className="text-2xl font-bold text-gray-900">ログイン</h1>
           <p className="mt-1 text-sm text-gray-500">
             管理者が発行したアカウントでログインしてください
           </p>

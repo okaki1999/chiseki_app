@@ -57,8 +57,7 @@ export default function HistoryPage() {
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-4xl">
         <AppHeader
-          title="Zahyoc"
-          subtitle="解析履歴"
+          title="解析履歴"
           actions={[{ href: "/", label: "新規解析", variant: "primary" }]}
         />
 

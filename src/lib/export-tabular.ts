@@ -274,7 +274,7 @@ export async function generateSurveyWorkbookBuffer(
   data: SurveyData,
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Zahyoc";
+  workbook.creator = "地積測量図OCR";
   workbook.created = new Date();
   const areaChecks = getAreaChecks(data);
   const issues = getSurveyIssues(data);

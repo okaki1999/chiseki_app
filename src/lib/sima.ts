@@ -52,7 +52,7 @@ export function generateSIMA(data: SurveyData): string {
     "G00",
     "1",
     cleanText(data.survey_metadata.location_id),
-    "Zahyoc",
+    "地積測量図OCR",
   ]);
   rows.push([
     "Z00",

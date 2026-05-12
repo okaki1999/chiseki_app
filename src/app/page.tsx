@@ -93,8 +93,7 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-4xl">
         <AppHeader
-          title="Zahyoc"
-          subtitle="地積測量図 OCR 解析"
+          title="地積測量図 OCR 解析"
           actions={[
             { href: "/history", label: "履歴" },
             ...(result && !saved
@@ -253,7 +252,7 @@ export default function Home() {
                 d="M4 12a8 8 0 018-8v8z"
               />
             </svg>
-            Gemini が図面ファイルを解析しています...
+            解析中...
           </div>
         )}
 
