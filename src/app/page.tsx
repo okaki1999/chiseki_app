@@ -9,6 +9,7 @@ import { SurveyResult } from "~/app/_components/SurveyResult";
 import { AppHeader } from "~/app/_components/AppHeader";
 
 export default function Home() {
+  const utils = api.useUtils();
   const [preview, setPreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState("image/jpeg");
@@ -26,6 +27,10 @@ export default function Home() {
       setShowSaveDialog(false);
     },
     onError: (e) => setError(e.message),
+  });
+  const { data: usageStatus } = api.tenant.usageStatus.useQuery(undefined, {
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,6 +77,7 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error ?? "解析に失敗しました");
       setResult(data);
       setSaveName(data.survey_metadata.location_id);
+      await utils.tenant.usageStatus.invalidate();
     } catch (e) {
       setError(e instanceof Error ? e.message : "エラーが発生しました");
     } finally {
@@ -220,6 +226,19 @@ export default function Home() {
             className="hidden"
           />
         </div>
+
+        {usageStatus && (
+          <div className="mb-4 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium text-gray-700">解析回数</p>
+              <p className="text-sm text-gray-500">
+                {usageStatus.unlimited
+                  ? "残り 無制限"
+                  : `残り ${usageStatus.remaining} 回`}
+              </p>
+            </div>
+          </div>
+        )}
 
         {preview && (
           <button

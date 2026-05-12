@@ -78,69 +78,95 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (session.user.usageLimit !== null) {
-      const usageCount = await db.usageEvent.count({
-        where: {
-          userId: session.user.id,
-          action: "ocr.extract",
-        },
-      });
-
-      if (usageCount >= session.user.usageLimit) {
-        return NextResponse.json(
-          {
-            error: `解析回数の上限に達しました（${usageCount}/${session.user.usageLimit}回）`,
-          },
-          { status: 403 },
-        );
-      }
-    }
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: PROMPT },
-                {
-                  inline_data: { mime_type: body.mimeType, data: body.base64 },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            response_mime_type: "application/json",
-            temperature: 0,
-          },
-        }),
-      },
-    );
-
-    const result = (await response.json()) as {
-      candidates?: { content: { parts: { text: string }[] } }[];
-      error?: { message: string };
-    };
-
-    if (!response.ok) {
+    if (session.user.usageLimit !== null && session.user.usageLimit <= 0) {
       return NextResponse.json(
-        { error: result.error?.message ?? "APIエラー" },
-        { status: response.status },
+        {
+          error: "解析回数の残りがありません",
+        },
+        { status: 403 },
       );
     }
 
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    const parsed = JSON.parse(text) as unknown;
-    await recordActivity({
-      session,
-      action: "ocr.extract",
-      metadata: { mimeType: body.mimeType },
-      usage: true,
-    });
-    return NextResponse.json(parsed);
+    const reservedUser =
+      session.user.usageLimit === null
+        ? null
+        : await db.user.updateMany({
+            where: {
+              id: session.user.id,
+              usageLimit: { gt: 0 },
+            },
+            data: {
+              usageLimit: { decrement: 1 },
+            },
+          });
+
+    if (reservedUser && reservedUser.count === 0) {
+      return NextResponse.json(
+        {
+          error: "解析回数の残りがありません",
+        },
+        { status: 403 },
+      );
+    }
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: PROMPT },
+                  {
+                    inline_data: {
+                      mime_type: body.mimeType,
+                      data: body.base64,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: "application/json",
+              temperature: 0,
+            },
+          }),
+        },
+      );
+
+      const result = (await response.json()) as {
+        candidates?: { content: { parts: { text: string }[] } }[];
+        error?: { message: string };
+      };
+
+      if (!response.ok) {
+        return NextResponse.json(
+          { error: result.error?.message ?? "APIエラー" },
+          { status: response.status },
+        );
+      }
+
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      const parsed = JSON.parse(text) as unknown;
+      await recordActivity({
+        session,
+        action: "ocr.extract",
+        metadata: { mimeType: body.mimeType },
+        usage: true,
+      });
+      return NextResponse.json(parsed);
+    } catch (error) {
+      if (reservedUser) {
+        await db.user.update({
+          where: { id: session.user.id },
+          data: { usageLimit: { increment: 1 } },
+        });
+      }
+      throw error;
+    }
   } catch {
     return NextResponse.json(
       { error: "サーバーエラーが発生しました" },

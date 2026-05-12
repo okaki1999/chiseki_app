@@ -29,6 +29,19 @@ export const tenantRouter = createTRPCRouter({
     user: ctx.session.user,
   })),
 
+  usageStatus: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.db.user.findUnique({
+      where: { id: ctx.session.user.id },
+      select: { usageLimit: true },
+    });
+    const remaining = user?.usageLimit ?? null;
+
+    return {
+      remaining,
+      unlimited: remaining === null,
+    };
+  }),
+
   current: protectedProcedure.query(async ({ ctx }) => {
     const tenant = await ctx.db.tenant.findUnique({
       where: { id: ctx.session.tenant.id },

@@ -403,7 +403,7 @@ export default function AdminPage() {
                             usageLimit: e.target.value,
                           }))
                         }
-                        placeholder="上限"
+                        placeholder="残数"
                         type="number"
                         min={0}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -461,7 +461,9 @@ export default function AdminPage() {
                             <th className="pr-4 pb-2 font-normal">名前</th>
                             <th className="pr-4 pb-2 font-normal">テナント</th>
                             <th className="pr-4 pb-2 font-normal">ロール</th>
-                            <th className="pr-4 pb-2 font-normal">解析上限</th>
+                            <th className="pr-4 pb-2 font-normal">
+                              残り解析回数
+                            </th>
                             <th className="pb-2 font-normal">操作</th>
                           </tr>
                         </thead>
