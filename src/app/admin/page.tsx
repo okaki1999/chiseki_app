@@ -31,8 +31,12 @@ type EditingMember = {
   email: string;
   name: string;
   password: string;
+  usageLimit: string;
   role: AppRole;
 };
+
+const parseUsageLimit = (value: string) =>
+  value.trim() === "" ? null : Number(value);
 
 export default function AdminPage() {
   const utils = api.useUtils();
@@ -52,6 +56,7 @@ export default function AdminPage() {
     email: "",
     name: "",
     password: "",
+    usageLimit: "",
     role: "MEMBER" as AppRole,
   });
 
@@ -92,6 +97,7 @@ export default function AdminPage() {
         email: "",
         name: "",
         password: "",
+        usageLimit: "",
         role: "MEMBER",
       }));
       setMessage("ユーザーを追加しました");
@@ -338,7 +344,7 @@ export default function AdminPage() {
                     <h2 className="mb-4 text-xs font-semibold tracking-wide text-gray-400 uppercase">
                       ユーザー登録
                     </h2>
-                    <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]">
+                    <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_8rem_auto_auto_auto]">
                       <select
                         value={selectedTenantId}
                         onChange={(e) =>
@@ -389,6 +395,19 @@ export default function AdminPage() {
                         type="password"
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
                       />
+                      <input
+                        value={newUser.usageLimit}
+                        onChange={(e) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            usageLimit: e.target.value,
+                          }))
+                        }
+                        placeholder="上限"
+                        type="number"
+                        min={0}
+                        className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                      />
                       <select
                         value={newUser.role}
                         onChange={(e) =>
@@ -413,6 +432,7 @@ export default function AdminPage() {
                             email: newUser.email,
                             name: newUser.name,
                             password: newUser.password,
+                            usageLimit: parseUsageLimit(newUser.usageLimit),
                             role: newUser.role,
                           })
                         }
@@ -441,6 +461,7 @@ export default function AdminPage() {
                             <th className="pr-4 pb-2 font-normal">名前</th>
                             <th className="pr-4 pb-2 font-normal">テナント</th>
                             <th className="pr-4 pb-2 font-normal">ロール</th>
+                            <th className="pr-4 pb-2 font-normal">解析上限</th>
                             <th className="pb-2 font-normal">操作</th>
                           </tr>
                         </thead>
@@ -527,6 +548,31 @@ export default function AdminPage() {
                                     </span>
                                   )}
                                 </td>
+                                <td className="py-3 pr-4">
+                                  {isEditing ? (
+                                    <input
+                                      value={editingMember.usageLimit}
+                                      onChange={(e) =>
+                                        setEditingMember((prev) =>
+                                          prev
+                                            ? {
+                                                ...prev,
+                                                usageLimit: e.target.value,
+                                              }
+                                            : prev,
+                                        )
+                                      }
+                                      placeholder="無制限"
+                                      type="number"
+                                      min={0}
+                                      className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                                    />
+                                  ) : (
+                                    <span className="text-gray-600">
+                                      {member.user.usageLimit ?? "無制限"}
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="py-3">
                                   <div className="flex flex-wrap gap-2">
                                     {isEditing ? (
@@ -555,6 +601,9 @@ export default function AdminPage() {
                                               email: editingMember.email,
                                               name: editingMember.name,
                                               password: editingMember.password,
+                                              usageLimit: parseUsageLimit(
+                                                editingMember.usageLimit,
+                                              ),
                                               role: editingMember.role,
                                             })
                                           }
@@ -580,6 +629,12 @@ export default function AdminPage() {
                                               email: member.user.email,
                                               name: member.user.name ?? "",
                                               password: "",
+                                              usageLimit:
+                                                member.user.usageLimit === null
+                                                  ? ""
+                                                  : String(
+                                                      member.user.usageLimit,
+                                                    ),
                                               role: member.role,
                                             })
                                           }

@@ -78,6 +78,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (session.user.usageLimit !== null) {
+      const usageCount = await db.usageEvent.count({
+        where: {
+          userId: session.user.id,
+          action: "ocr.extract",
+        },
+      });
+
+      if (usageCount >= session.user.usageLimit) {
+        return NextResponse.json(
+          {
+            error: `解析回数の上限に達しました（${usageCount}/${session.user.usageLimit}回）`,
+          },
+          { status: 403 },
+        );
+      }
+    }
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
       {

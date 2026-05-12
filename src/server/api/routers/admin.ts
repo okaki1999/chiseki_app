@@ -25,6 +25,7 @@ const adminRoleSchema = z.enum([
   "MEMBER",
   "VIEWER",
 ]);
+const usageLimitSchema = z.number().int().min(0).nullable().optional();
 
 export const adminRouter = createTRPCRouter({
   overview: protectedProcedure.query(async ({ ctx }) => {
@@ -155,6 +156,7 @@ export const adminRouter = createTRPCRouter({
         email: z.string().email(),
         password: z.string().min(8),
         name: z.string().max(80).optional(),
+        usageLimit: usageLimitSchema,
         role: adminRoleSchema.default("MEMBER"),
       }),
     )
@@ -165,6 +167,7 @@ export const adminRouter = createTRPCRouter({
         email: input.email,
         password: input.password,
         name: input.name ?? null,
+        usageLimit: input.usageLimit ?? null,
       });
       const member = await attachUserToTenant(
         ctx.db,
@@ -182,6 +185,7 @@ export const adminRouter = createTRPCRouter({
           tenantId: input.tenantId,
           email: user.email,
           role: input.role,
+          usageLimit: input.usageLimit ?? null,
         },
       });
 
@@ -195,6 +199,7 @@ export const adminRouter = createTRPCRouter({
         email: z.string().email(),
         password: z.string().min(8).optional().or(z.literal("")),
         name: z.string().max(80).optional(),
+        usageLimit: usageLimitSchema,
         role: adminRoleSchema,
       }),
     )
@@ -216,6 +221,7 @@ export const adminRouter = createTRPCRouter({
         email: input.email,
         password: input.password === "" ? undefined : input.password,
         name: input.name ?? null,
+        usageLimit: input.usageLimit ?? null,
       });
       const updated = await ctx.db.tenantMember.update({
         where: { id: input.memberId },
@@ -234,6 +240,7 @@ export const adminRouter = createTRPCRouter({
           afterEmail: user.email,
           beforeRole: member.role,
           afterRole: input.role,
+          afterUsageLimit: input.usageLimit ?? null,
           passwordChanged: Boolean(input.password),
         },
       });

@@ -38,15 +38,15 @@ export function AppHeader({
 
   return (
     <header
-      className={`mx-auto mb-8 flex items-end justify-between ${maxWidth}`}
+      className={`mx-auto mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between ${maxWidth}`}
     >
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold tracking-tight break-words text-gray-900 sm:text-3xl">
           {title}
         </h1>
         {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
         {actions.map((action) =>
           action.href ? (
             <Link
@@ -54,8 +54,8 @@ export function AppHeader({
               href={action.href}
               className={
                 action.variant === "primary"
-                  ? "rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                  : "text-sm text-gray-500 hover:text-gray-700"
+                  ? "rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-blue-700 sm:px-4"
+                  : "text-sm whitespace-nowrap text-gray-500 hover:text-gray-700"
               }
             >
               {action.label}
@@ -66,7 +66,7 @@ export function AppHeader({
               type="button"
               onClick={action.onClick}
               disabled={action.disabled}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-blue-700 disabled:opacity-60 sm:px-4"
             >
               {action.label}
             </button>
@@ -75,7 +75,7 @@ export function AppHeader({
         {canManageTenant(data?.role) && (
           <Link
             href={data?.role === "SUPER_ADMIN" ? "/admin" : "/settings"}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="text-sm whitespace-nowrap text-gray-500 hover:text-gray-700"
           >
             管理
           </Link>

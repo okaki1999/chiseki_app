@@ -54,7 +54,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
+    <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="mx-auto max-w-4xl">
         <AppHeader
           title="解析履歴"
@@ -87,7 +87,7 @@ export default function HistoryPage() {
         )}
 
         {!isLoading && records?.length === 0 && (
-          <div className="rounded-xl bg-white p-12 text-center text-gray-400 shadow-sm">
+          <div className="rounded-xl bg-white p-6 text-center text-gray-400 shadow-sm sm:p-12">
             <p className="text-sm">保存済みの図面がありません</p>
             <Link
               href="/"
@@ -111,10 +111,13 @@ export default function HistoryPage() {
             return (
               <div
                 key={record.id}
-                className="flex items-center gap-4 rounded-xl bg-white p-4 shadow-sm"
+                className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-sm sm:flex-row sm:items-center"
               >
                 {/* サムネイル */}
-                <Link href={`/history/${record.id}`}>
+                <Link
+                  href={`/history/${record.id}`}
+                  className="self-start sm:self-auto"
+                >
                   {isPdfUrl(record.imageUrl) ? (
                     <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-red-400 hover:opacity-80">
                       <svg
@@ -153,7 +156,7 @@ export default function HistoryPage() {
                 {/* 情報 */}
                 <Link
                   href={`/history/${record.id}`}
-                  className="min-w-0 flex-1 hover:opacity-70"
+                  className="w-full min-w-0 flex-1 hover:opacity-70 sm:w-auto"
                 >
                   <p className="truncate font-semibold text-gray-800">
                     {record.name}
@@ -161,7 +164,7 @@ export default function HistoryPage() {
                   <p className="text-sm text-gray-500">
                     {data.survey_metadata.location_id}
                   </p>
-                  <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400">
                     <span>{totalArea} ㎡</span>
                     <span>·</span>
                     <span>{data.survey_metadata.survey_date}</span>
@@ -171,14 +174,14 @@ export default function HistoryPage() {
                 </Link>
 
                 {/* アクション */}
-                <div className="flex flex-shrink-0 items-center gap-2">
+                <div className="grid w-full grid-cols-3 gap-2 min-[420px]:grid-cols-6 sm:flex sm:w-auto sm:flex-shrink-0 sm:flex-wrap sm:items-center sm:justify-end">
                   {/* ファイルダウンロード */}
                   <a
                     href={record.imageUrl}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
+                    className="flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
                     title="ファイルをダウンロード"
                   >
                     <svg
@@ -280,7 +283,7 @@ export default function HistoryPage() {
                         deleteMap.mutate({ id: record.id });
                       }
                     }}
-                    className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-red-50 hover:text-red-500"
+                    className="flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-red-50 hover:text-red-500"
                     title="削除"
                   >
                     <svg

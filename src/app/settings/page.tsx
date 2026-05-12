@@ -19,8 +19,12 @@ type EditingMember = {
   email: string;
   name: string;
   password: string;
+  usageLimit: string;
   role: (typeof manageableRoles)[number];
 };
+
+const parseUsageLimit = (value: string) =>
+  value.trim() === "" ? null : Number(value);
 
 export default function SettingsPage() {
   const utils = api.useUtils();
@@ -30,6 +34,7 @@ export default function SettingsPage() {
     email: "",
     name: "",
     password: "",
+    usageLimit: "",
     role: "MEMBER" as (typeof manageableRoles)[number],
   });
   const [editing, setEditing] = useState<EditingMember | null>(null);
@@ -43,7 +48,13 @@ export default function SettingsPage() {
 
   const createMember = api.tenant.createMember.useMutation({
     onSuccess: async () => {
-      setNewUser({ email: "", name: "", password: "", role: "MEMBER" });
+      setNewUser({
+        email: "",
+        name: "",
+        password: "",
+        usageLimit: "",
+        role: "MEMBER",
+      });
       setMessage("ユーザーを追加しました");
       await refresh();
     },
@@ -128,7 +139,7 @@ export default function SettingsPage() {
               </div>
 
               {canManage && (
-                <div className="mb-5 grid gap-2 rounded-lg bg-gray-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto_auto]">
+                <div className="mb-5 grid gap-2 rounded-lg bg-gray-50 p-3 md:grid-cols-[1fr_1fr_1fr_8rem_auto_auto]">
                   <input
                     value={newUser.email}
                     onChange={(e) =>
@@ -157,6 +168,19 @@ export default function SettingsPage() {
                     type="password"
                     className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
                   />
+                  <input
+                    value={newUser.usageLimit}
+                    onChange={(e) =>
+                      setNewUser((prev) => ({
+                        ...prev,
+                        usageLimit: e.target.value,
+                      }))
+                    }
+                    placeholder="上限"
+                    type="number"
+                    min={0}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                  />
                   <select
                     value={newUser.role}
                     onChange={(e) =>
@@ -175,7 +199,12 @@ export default function SettingsPage() {
                   </select>
                   <button
                     type="button"
-                    onClick={() => createMember.mutate(newUser)}
+                    onClick={() =>
+                      createMember.mutate({
+                        ...newUser,
+                        usageLimit: parseUsageLimit(newUser.usageLimit),
+                      })
+                    }
                     disabled={
                       createMember.isPending ||
                       !newUser.email.trim() ||
@@ -195,6 +224,7 @@ export default function SettingsPage() {
                       <th className="pr-4 pb-2 font-normal">メール</th>
                       <th className="pr-4 pb-2 font-normal">名前</th>
                       <th className="pr-4 pb-2 font-normal">ロール</th>
+                      <th className="pr-4 pb-2 font-normal">解析上限</th>
                       <th className="pb-2 font-normal">操作</th>
                     </tr>
                   </thead>
@@ -270,6 +300,31 @@ export default function SettingsPage() {
                               </span>
                             )}
                           </td>
+                          <td className="py-3 pr-4">
+                            {isEditing ? (
+                              <input
+                                value={editing.usageLimit}
+                                onChange={(e) =>
+                                  setEditing((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          usageLimit: e.target.value,
+                                        }
+                                      : prev,
+                                  )
+                                }
+                                placeholder="無制限"
+                                type="number"
+                                min={0}
+                                className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                              />
+                            ) : (
+                              <span className="text-gray-600">
+                                {member.user.usageLimit ?? "無制限"}
+                              </span>
+                            )}
+                          </td>
                           <td className="py-3">
                             {canManage &&
                               member.userId !== data.currentUserId && (
@@ -300,6 +355,9 @@ export default function SettingsPage() {
                                             email: editing.email,
                                             name: editing.name,
                                             password: editing.password,
+                                            usageLimit: parseUsageLimit(
+                                              editing.usageLimit,
+                                            ),
                                             role: editing.role,
                                           })
                                         }
@@ -325,6 +383,12 @@ export default function SettingsPage() {
                                             email: member.user.email,
                                             name: member.user.name ?? "",
                                             password: "",
+                                            usageLimit:
+                                              member.user.usageLimit === null
+                                                ? ""
+                                                : String(
+                                                    member.user.usageLimit,
+                                                  ),
                                             role:
                                               member.role === "SUPER_ADMIN"
                                                 ? "TENANT_ADMIN"

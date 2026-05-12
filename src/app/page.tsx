@@ -90,7 +90,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
+    <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="mx-auto max-w-4xl">
         <AppHeader
           title="地積測量図 OCR 解析"
@@ -120,25 +120,25 @@ export default function Home() {
             <p className="mb-2 text-sm font-medium text-blue-800">
               名前を付けて保存
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
                 placeholder="例: 中野区1374番1 平成31年"
-                className="flex-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                className="min-w-0 flex-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                 autoFocus
               />
               <button
                 onClick={handleSave}
                 disabled={!saveName.trim() || saveMap.isPending}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 {saveMap.isPending ? "保存中..." : "確定"}
               </button>
               <button
                 onClick={() => setShowSaveDialog(false)}
-                className="rounded-lg px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
+                className="rounded-lg px-4 py-2 text-sm whitespace-nowrap text-gray-500 hover:text-gray-700"
               >
                 キャンセル
               </button>
@@ -150,7 +150,7 @@ export default function Home() {
         <div className="mb-4 overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-white transition hover:border-gray-300">
           <label
             htmlFor="file-input"
-            className="block cursor-pointer p-8 text-center"
+            className="block cursor-pointer p-5 text-center sm:p-8"
           >
             {preview && mimeType === "application/pdf" ? (
               <div className="flex flex-col items-center gap-3 text-gray-500">
@@ -181,7 +181,7 @@ export default function Home() {
                 </span>
               </div>
             ) : preview ? (
-              <span className="relative mx-auto block h-72 max-w-full">
+              <span className="relative mx-auto block h-56 max-w-full sm:h-72">
                 <Image
                   src={preview}
                   alt="preview"

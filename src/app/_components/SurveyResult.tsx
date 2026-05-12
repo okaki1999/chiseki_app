@@ -18,9 +18,9 @@ import {
 
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs text-gray-400">{label}</p>
-      <p className="font-medium text-gray-800">{value}</p>
+      <p className="font-medium break-words text-gray-800">{value}</p>
     </div>
   );
 }
@@ -35,7 +35,7 @@ function MetaInput({
   onChange: (v: string) => void;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs text-gray-400">{label}</p>
       <input
         type="text"
@@ -49,32 +49,34 @@ function MetaInput({
 
 function CoordTable({ rows }: { rows: Coordinate[] }) {
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b text-left text-gray-400">
-          <th className="pr-4 pb-2 font-normal">測点</th>
-          <th className="pr-4 pb-2 font-normal">X座標</th>
-          <th className="pr-4 pb-2 font-normal">Y座標</th>
-          <th className="pb-2 font-normal">境界標</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((c) => (
-          <tr key={c.point} className="border-b last:border-0">
-            <td className="py-2 pr-4 font-mono font-semibold text-gray-700">
-              {c.point}
-            </td>
-            <td className="py-2 pr-4 font-mono text-gray-600">
-              {c.x.toFixed(3)}
-            </td>
-            <td className="py-2 pr-4 font-mono text-gray-600">
-              {c.y.toFixed(3)}
-            </td>
-            <td className="py-2 text-gray-500">{c.marker_type ?? "—"}</td>
+    <div className="overflow-x-auto">
+      <table className="min-w-[560px] text-sm">
+        <thead>
+          <tr className="border-b text-left text-gray-400">
+            <th className="pr-4 pb-2 font-normal">測点</th>
+            <th className="pr-4 pb-2 font-normal">X座標</th>
+            <th className="pr-4 pb-2 font-normal">Y座標</th>
+            <th className="pb-2 font-normal">境界標</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((c) => (
+            <tr key={c.point} className="border-b last:border-0">
+              <td className="py-2 pr-4 font-mono font-semibold text-gray-700">
+                {c.point}
+              </td>
+              <td className="py-2 pr-4 font-mono text-gray-600">
+                {c.x.toFixed(3)}
+              </td>
+              <td className="py-2 pr-4 font-mono text-gray-600">
+                {c.y.toFixed(3)}
+              </td>
+              <td className="py-2 text-gray-500">{c.marker_type ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -101,55 +103,57 @@ function CoordTableEdit({
   };
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b text-left text-gray-400">
-          <th className="pr-2 pb-2 font-normal">測点</th>
-          <th className="pr-2 pb-2 font-normal">X座標</th>
-          <th className="pr-2 pb-2 font-normal">Y座標</th>
-          <th className="pb-2 font-normal">境界標</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((c, i) => (
-          <tr key={i} className="border-b last:border-0">
-            <td className="py-1 pr-2">
-              <input
-                value={c.point}
-                onChange={(e) => update(i, "point", e.target.value)}
-                className="w-16 rounded border border-blue-200 px-1 py-0.5 font-mono text-sm font-semibold text-gray-700 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-              />
-            </td>
-            <td className="py-1 pr-2">
-              <input
-                type="number"
-                step="0.001"
-                value={c.x}
-                onChange={(e) => update(i, "x", e.target.value)}
-                className="w-32 rounded border border-blue-200 px-1 py-0.5 font-mono text-sm text-gray-600 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-              />
-            </td>
-            <td className="py-1 pr-2">
-              <input
-                type="number"
-                step="0.001"
-                value={c.y}
-                onChange={(e) => update(i, "y", e.target.value)}
-                className="w-32 rounded border border-blue-200 px-1 py-0.5 font-mono text-sm text-gray-600 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-              />
-            </td>
-            <td className="py-1">
-              <input
-                value={c.marker_type ?? ""}
-                onChange={(e) => update(i, "marker_type", e.target.value)}
-                placeholder="—"
-                className="w-24 rounded border border-blue-200 px-1 py-0.5 text-sm text-gray-500 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-              />
-            </td>
+    <div className="overflow-x-auto">
+      <table className="min-w-[560px] text-sm">
+        <thead>
+          <tr className="border-b text-left text-gray-400">
+            <th className="pr-2 pb-2 font-normal">測点</th>
+            <th className="pr-2 pb-2 font-normal">X座標</th>
+            <th className="pr-2 pb-2 font-normal">Y座標</th>
+            <th className="pb-2 font-normal">境界標</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((c, i) => (
+            <tr key={i} className="border-b last:border-0">
+              <td className="py-1 pr-2">
+                <input
+                  value={c.point}
+                  onChange={(e) => update(i, "point", e.target.value)}
+                  className="w-16 rounded border border-blue-200 px-1 py-0.5 font-mono text-sm font-semibold text-gray-700 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                />
+              </td>
+              <td className="py-1 pr-2">
+                <input
+                  type="number"
+                  step="0.001"
+                  value={c.x}
+                  onChange={(e) => update(i, "x", e.target.value)}
+                  className="w-32 rounded border border-blue-200 px-1 py-0.5 font-mono text-sm text-gray-600 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                />
+              </td>
+              <td className="py-1 pr-2">
+                <input
+                  type="number"
+                  step="0.001"
+                  value={c.y}
+                  onChange={(e) => update(i, "y", e.target.value)}
+                  className="w-32 rounded border border-blue-200 px-1 py-0.5 font-mono text-sm text-gray-600 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                />
+              </td>
+              <td className="py-1">
+                <input
+                  value={c.marker_type ?? ""}
+                  onChange={(e) => update(i, "marker_type", e.target.value)}
+                  placeholder="—"
+                  className="w-24 rounded border border-blue-200 px-1 py-0.5 text-sm text-gray-500 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -182,7 +186,7 @@ function ValidationSummary({ data }: { data: SurveyData }) {
   const coordinateBased = isCoordinateBasedSurvey(data);
 
   return (
-    <section className="rounded-xl bg-white p-6 shadow-sm">
+    <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
           検算・要確認
@@ -201,7 +205,7 @@ function ValidationSummary({ data }: { data: SurveyData }) {
       </div>
 
       <div className="mb-5 overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="min-w-[520px] text-sm">
           <thead>
             <tr className="border-b text-left text-gray-400">
               <th className="pr-4 pb-2 font-normal">筆ID</th>
@@ -782,7 +786,7 @@ function SurveyMapPreview({ data }: { data: SurveyData }) {
   }, [geojson]);
 
   return (
-    <section className="rounded-xl bg-white p-6 shadow-sm">
+    <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
@@ -794,12 +798,12 @@ function SurveyMapPreview({ data }: { data: SurveyData }) {
             </p>
           )}
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex w-full items-center gap-2 text-sm text-gray-600 sm:w-auto">
           座標系
           <select
             value={selectedSystem}
             onChange={(event) => setSelectedSystem(Number(event.target.value))}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-400 focus:outline-none sm:flex-none"
           >
             {PLANE_COORDINATE_SYSTEMS.map((system) => (
               <option key={system.code} value={system.code}>
@@ -811,7 +815,7 @@ function SurveyMapPreview({ data }: { data: SurveyData }) {
       </div>
       <div
         ref={mapContainerRef}
-        className="h-[420px] overflow-hidden rounded-lg border border-gray-100"
+        className="h-[320px] overflow-hidden rounded-lg border border-gray-100 sm:h-[420px]"
       />
     </section>
   );
@@ -906,17 +910,17 @@ function SurveyShapePreview({ data }: { data: SurveyData }) {
   });
 
   return (
-    <section className="rounded-xl bg-white p-6 shadow-sm">
+    <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
           図形プレビュー
         </h2>
         <span className="text-xs text-gray-400">北方向: 上</span>
       </div>
-      <div className="overflow-hidden rounded-lg border border-gray-100 bg-slate-50">
+      <div className="overflow-x-auto rounded-lg border border-gray-100 bg-slate-50">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="h-auto w-full"
+          className="h-auto min-w-[520px] sm:w-full sm:min-w-0"
           role="img"
           aria-label="抽出座標の図形プレビュー"
         >
@@ -1146,13 +1150,13 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
     <div className="space-y-4">
       {/* 画像プレビュー（履歴詳細から開いた場合） */}
       {imageUrl && (
-        <div className="flex items-start justify-between gap-4 rounded-xl bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-sm sm:flex-row sm:items-start sm:justify-between">
           {isPdfUrl(imageUrl) ? (
             <a
               href={imageUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-40 w-40 flex-shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100"
+              className="flex h-40 w-full flex-shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 sm:w-40"
             >
               <svg
                 className="h-10 w-10 text-red-400"
@@ -1176,7 +1180,7 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
               <span className="text-xs font-medium">PDFを開く</span>
             </a>
           ) : (
-            <span className="relative block h-40 w-40 flex-shrink-0 overflow-hidden rounded-lg">
+            <span className="relative block h-48 w-full flex-shrink-0 overflow-hidden rounded-lg sm:h-40 sm:w-40">
               <Image
                 src={imageUrl}
                 alt="地積測量図"
@@ -1186,13 +1190,13 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
               />
             </span>
           )}
-          <div className="flex flex-1 flex-col items-end gap-2">
+          <div className="flex min-w-0 flex-1 flex-col items-stretch gap-2 sm:items-end">
             <a
               href={imageUrl}
               download
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <svg
                 className="h-4 w-4"
@@ -1214,11 +1218,11 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
       )}
 
       <section className="rounded-xl bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
             出力
           </h2>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             {(["dxf", "csv", "xlsx", "sima"] as const).map((format) => (
               <button
                 key={format}
@@ -1232,7 +1236,7 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
                     ? "座標がないため出力できません"
                     : undefined
                 }
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 sm:px-4"
               >
                 {exporting === format
                   ? "出力中..."
@@ -1245,11 +1249,11 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
 
       {/* 編集アクションバー */}
       {onSave && (
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           {!editMode ? (
             <button
               onClick={handleEditStart}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              className="flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             >
               <svg
                 className="h-4 w-4"
@@ -1287,11 +1291,11 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
       )}
 
       {/* 基本情報 */}
-      <section className="rounded-xl bg-white p-6 shadow-sm">
+      <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
         <h2 className="mb-4 text-xs font-semibold tracking-wide text-gray-400 uppercase">
           基本情報
         </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           {editMode ? (
             <>
               <MetaInput
@@ -1419,7 +1423,7 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
           <SurveyShapePreview data={displayData} />
         </>
       ) : (
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+        <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             図形・地図プレビュー
           </h2>
@@ -1434,9 +1438,9 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
       {displayData.parcels.map((parcel, parcelIdx) => (
         <section
           key={parcel.parcel_id}
-          className="rounded-xl bg-white p-6 shadow-sm"
+          className="rounded-xl bg-white p-4 shadow-sm sm:p-6"
         >
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
               {parcel.parcel_id}
             </h2>
@@ -1480,7 +1484,7 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
 
       {/* 隣接地番 */}
       {displayData.adjacent_parcels.length > 0 && (
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+        <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-3 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             隣接地番
           </h2>
@@ -1499,7 +1503,7 @@ export function SurveyResult({ result, imageUrl, onSave, isSaving }: Props) {
 
       {/* 基準点 */}
       {displayData.reference_points.length > 0 && (
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+        <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
           <h2 className="mb-4 text-xs font-semibold tracking-wide text-gray-400 uppercase">
             基準点
           </h2>

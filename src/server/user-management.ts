@@ -6,12 +6,13 @@ type UserInput = {
   email: string;
   password?: string;
   name?: string | null;
+  usageLimit?: number | null;
 };
 
 export async function createAuthBackedUser(
   db: PrismaClient,
   input: Required<Pick<UserInput, "email" | "password">> &
-    Pick<UserInput, "name">,
+    Pick<UserInput, "name" | "usageLimit">,
 ) {
   const existing = await db.user.findUnique({ where: { email: input.email } });
   if (existing) return existing;
@@ -35,6 +36,7 @@ export async function createAuthBackedUser(
       supabaseUserId: data.user.id,
       email: data.user.email,
       name: input.name ?? null,
+      usageLimit: input.usageLimit ?? null,
     },
   });
 }
@@ -76,6 +78,7 @@ export async function updateAuthBackedUser(
     data: {
       ...(input.email && { email: input.email }),
       ...(input.name !== undefined && { name: input.name }),
+      ...(input.usageLimit !== undefined && { usageLimit: input.usageLimit }),
     },
   });
 }

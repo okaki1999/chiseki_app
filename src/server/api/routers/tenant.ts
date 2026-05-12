@@ -11,6 +11,7 @@ import {
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
 const roleSchema = z.enum(["TENANT_ADMIN", "MEMBER", "VIEWER"]);
+const usageLimitSchema = z.number().int().min(0).nullable().optional();
 
 const requireTenantAdmin = (role: AppRole) => {
   if (!canManageTenant(role)) {
@@ -73,6 +74,7 @@ export const tenantRouter = createTRPCRouter({
         email: z.string().email(),
         password: z.string().min(8),
         name: z.string().max(80).optional(),
+        usageLimit: usageLimitSchema,
         role: roleSchema.default("MEMBER"),
       }),
     )
@@ -83,6 +85,7 @@ export const tenantRouter = createTRPCRouter({
         email: input.email,
         password: input.password,
         name: input.name ?? null,
+        usageLimit: input.usageLimit ?? null,
       });
       const member = await attachUserToTenant(
         ctx.db,
@@ -109,6 +112,7 @@ export const tenantRouter = createTRPCRouter({
         email: z.string().email(),
         password: z.string().min(8).optional().or(z.literal("")),
         name: z.string().max(80).optional(),
+        usageLimit: usageLimitSchema,
         role: roleSchema,
       }),
     )
@@ -133,6 +137,7 @@ export const tenantRouter = createTRPCRouter({
         email: input.email,
         password: input.password === "" ? undefined : input.password,
         name: input.name ?? null,
+        usageLimit: input.usageLimit ?? null,
       });
       const updated = await ctx.db.tenantMember.update({
         where: { id: input.memberId },
@@ -150,6 +155,7 @@ export const tenantRouter = createTRPCRouter({
           afterEmail: user.email,
           beforeRole: member.role,
           afterRole: input.role,
+          afterUsageLimit: input.usageLimit ?? null,
           passwordChanged: Boolean(input.password),
         },
       });

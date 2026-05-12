@@ -17,6 +17,7 @@ export type AppSession = {
     supabaseUserId: string;
     email: string;
     name: string | null;
+    usageLimit: number | null;
   };
   tenant: {
     id: string;
