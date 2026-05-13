@@ -18,6 +18,8 @@ type UploadedFile = {
   storagePath: string;
 };
 
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
 const readJsonResponse = async <T,>(res: Response): Promise<T> => {
   const text = await res.text();
   try {
@@ -57,6 +59,21 @@ export default function Home() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    if (f.size > MAX_UPLOAD_BYTES) {
+      e.target.value = "";
+      setFile(null);
+      setPreview(null);
+      setImageBase64(null);
+      setFileName("");
+      setResult(null);
+      setSaved(false);
+      setSaveName("");
+      setUploadedFile(null);
+      setError(
+        "ファイルは8MBまでアップロードできます。PDFは対象ページだけにするか、ファイルを圧縮してください。",
+      );
+      return;
+    }
     setFile(f);
     const selectedMimeType =
       f.type ||
