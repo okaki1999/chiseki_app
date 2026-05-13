@@ -4,7 +4,7 @@ import { recordActivity } from "~/server/activity";
 import { resolveAppSession } from "~/server/auth";
 import { db } from "~/server/db";
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-3-flash-preview";
 
 const SUPPORTED_MIME_TYPES = new Set(["application/pdf"]);
 
@@ -132,6 +132,9 @@ export async function POST(req: NextRequest) {
             generationConfig: {
               response_mime_type: "application/json",
               temperature: 0,
+              thinkingConfig: {
+                thinkingLevel: "low",
+              },
             },
           }),
         },

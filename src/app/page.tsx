@@ -215,6 +215,13 @@ export default function Home() {
                   地積測量図をアップロード
                 </span>
                 <span className="text-xs">JPG / PNG / PDF</span>
+                {usageStatus && (
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">
+                    {usageStatus.unlimited
+                      ? "残り 無制限"
+                      : `残り ${usageStatus.remaining} 回`}
+                  </span>
+                )}
               </div>
             )}
           </label>
@@ -226,19 +233,6 @@ export default function Home() {
             className="hidden"
           />
         </div>
-
-        {usageStatus && (
-          <div className="mb-4 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-medium text-gray-700">解析回数</p>
-              <p className="text-sm text-gray-500">
-                {usageStatus.unlimited
-                  ? "残り 無制限"
-                  : `残り ${usageStatus.remaining} 回`}
-              </p>
-            </div>
-          </div>
-        )}
 
         {preview && (
           <button
