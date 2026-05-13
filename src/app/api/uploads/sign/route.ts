@@ -48,6 +48,10 @@ export async function POST(req: NextRequest) {
       .createSignedUploadUrl(path);
 
     if (error) {
+      console.error("/api/uploads/sign storage error", {
+        bucket: STORAGE_BUCKET,
+        message: error.message,
+      });
       return NextResponse.json(
         { error: `アップロードURLの作成に失敗しました: ${error.message}` },
         { status: 500 },

@@ -92,18 +92,39 @@ const surveyDataEnvelopeSchema = z.union([
   z.object({ data: surveyDataSchema }),
   z.object({ result: surveyDataSchema }),
   z.object({ survey_data: surveyDataSchema }),
+  z.array(surveyDataSchema),
+  z.object({ data: z.array(surveyDataSchema) }),
+  z.object({ result: z.array(surveyDataSchema) }),
+  z.object({ survey_data: z.array(surveyDataSchema) }),
 ]);
 
 function normalizeSurveyData(parsed: unknown) {
   const envelope = surveyDataEnvelopeSchema.parse(parsed);
-  const data =
-    "data" in envelope
-      ? envelope.data
-      : "result" in envelope
-        ? envelope.result
-        : "survey_data" in envelope
-          ? envelope.survey_data
-          : envelope;
+  let dataOrList:
+    | z.infer<typeof surveyDataSchema>
+    | z.infer<typeof surveyDataSchema>[];
+  if (Array.isArray(envelope)) {
+    dataOrList = envelope;
+  } else if ("data" in envelope) {
+    dataOrList = envelope.data;
+  } else if ("result" in envelope) {
+    dataOrList = envelope.result;
+  } else if ("survey_data" in envelope) {
+    dataOrList = envelope.survey_data;
+  } else {
+    dataOrList = envelope;
+  }
+
+  const data = Array.isArray(dataOrList) ? dataOrList[0] : dataOrList;
+  if (!data) {
+    throw new z.ZodError([
+      {
+        code: "custom",
+        path: [],
+        message: "解析結果が空です",
+      },
+    ]);
+  }
 
   return data;
 }
