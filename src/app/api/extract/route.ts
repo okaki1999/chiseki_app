@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { env } from "~/env";
 import { getSupabase } from "~/lib/supabase";
 import { STORAGE_BUCKET } from "~/lib/storage";
@@ -12,6 +13,100 @@ const SUPPORTED_MIME_TYPES = new Set(["application/pdf"]);
 
 const isSupportedMimeType = (mimeType: string) =>
   mimeType.startsWith("image/") || SUPPORTED_MIME_TYPES.has(mimeType);
+
+const coordinateSchema = z.object({
+  point: z.string().catch(""),
+  x: z.number().catch(0),
+  y: z.number().catch(0),
+  marker_type: z.string().optional().catch(undefined),
+});
+
+const surveyMetadataSchema = z
+  .object({
+    location_id: z.string().catch("不明"),
+    geodetic_system: z.string().catch("不明"),
+    coordinate_system: z.string().catch(""),
+    scale_factor: z.number().catch(1),
+    survey_date: z.string().catch(""),
+    surveyor: z.string().optional().catch(undefined),
+    creator_organization: z.string().optional().catch(undefined),
+    applicant: z.string().optional().catch(undefined),
+    calculation_method: z
+      .enum([
+        "coordinate",
+        "triangulation",
+        "residual",
+        "mixed",
+        "area_only",
+        "unknown",
+      ])
+      .optional()
+      .catch("unknown"),
+    method_confidence: z.number().optional().catch(undefined),
+    method_evidence: z.array(z.string()).optional().catch(undefined),
+    coordinate_status: z
+      .enum([
+        "public_coordinates",
+        "local_coordinates",
+        "no_coordinates",
+        "unknown",
+      ])
+      .optional()
+      .catch("unknown"),
+    document_type: z
+      .enum(["survey_map", "cadastral_map", "boundary_photo", "unknown"])
+      .optional()
+      .catch("unknown"),
+  })
+  .catch({
+    location_id: "不明",
+    geodetic_system: "不明",
+    coordinate_system: "",
+    scale_factor: 1,
+    survey_date: "",
+    calculation_method: "unknown",
+    coordinate_status: "unknown",
+    document_type: "unknown",
+  });
+
+const parcelSchema = z.object({
+  parcel_id: z.string().catch("不明"),
+  area_m2: z.number().catch(0),
+  calculation_method: z
+    .enum(["coordinate", "triangulation", "residual", "area_only", "unknown"])
+    .optional()
+    .catch("unknown"),
+  calculation_notes: z.string().optional().catch(undefined),
+  coordinates: z.array(coordinateSchema).catch([]),
+});
+
+const surveyDataSchema = z.object({
+  survey_metadata: surveyMetadataSchema,
+  parcels: z.array(parcelSchema).catch([]),
+  reference_points: z.array(coordinateSchema).catch([]),
+  adjacent_parcels: z.array(z.string()).catch([]),
+});
+
+const surveyDataEnvelopeSchema = z.union([
+  surveyDataSchema,
+  z.object({ data: surveyDataSchema }),
+  z.object({ result: surveyDataSchema }),
+  z.object({ survey_data: surveyDataSchema }),
+]);
+
+function normalizeSurveyData(parsed: unknown) {
+  const envelope = surveyDataEnvelopeSchema.parse(parsed);
+  const data =
+    "data" in envelope
+      ? envelope.data
+      : "result" in envelope
+        ? envelope.result
+        : "survey_data" in envelope
+          ? envelope.survey_data
+          : envelope;
+
+  return data;
+}
 
 type ExtractRequestBody = {
   base64?: string;
@@ -201,13 +296,30 @@ export async function POST(req: NextRequest) {
 
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const parsed = JSON.parse(text) as unknown;
+      const validation = z
+        .unknown()
+        .transform((value) => normalizeSurveyData(value))
+        .safeParse(parsed);
+      if (!validation.success) {
+        console.error("/api/extract invalid response shape", {
+          issues: validation.error.issues,
+          parsed,
+        });
+        return NextResponse.json(
+          {
+            error:
+              "解析結果の形式が不正です。PDFの対象ページや文字の状態を確認してください。",
+          },
+          { status: 502 },
+        );
+      }
       await recordActivity({
         session,
         action: "ocr.extract",
         metadata: { mimeType: body.mimeType },
         usage: true,
       });
-      return NextResponse.json(parsed);
+      return NextResponse.json(validation.data);
     } catch (error) {
       if (reservedUser) {
         await db.user.update({
@@ -217,7 +329,8 @@ export async function POST(req: NextRequest) {
       }
       throw error;
     }
-  } catch {
+  } catch (error) {
+    console.error("/api/extract failed", error);
     return NextResponse.json(
       { error: "サーバーエラーが発生しました" },
       { status: 500 },

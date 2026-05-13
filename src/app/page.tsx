@@ -18,6 +18,15 @@ type UploadedFile = {
   storagePath: string;
 };
 
+const readJsonResponse = async <T,>(res: Response): Promise<T> => {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(text || `${res.status} ${res.statusText}`);
+  }
+};
+
 export default function Home() {
   const utils = api.useUtils();
   const [preview, setPreview] = useState<string | null>(null);
@@ -83,12 +92,12 @@ export default function Home() {
       },
       body: JSON.stringify({ mimeType }),
     });
-    const signed = (await signRes.json()) as {
+    const signed = await readJsonResponse<{
       path?: string;
       token?: string;
       publicUrl?: string;
       error?: string;
-    };
+    }>(signRes);
     if (!signRes.ok || !signed.path || !signed.token || !signed.publicUrl) {
       throw new Error(signed.error ?? "アップロードURLの作成に失敗しました");
     }
@@ -137,7 +146,7 @@ export default function Home() {
             : { base64: imageBase64, mimeType },
         ),
       });
-      const data = (await res.json()) as SurveyData & { error?: string };
+      const data = await readJsonResponse<SurveyData & { error?: string }>(res);
       if (!res.ok) throw new Error(data.error ?? "解析に失敗しました");
       setResult(data);
       setSaveName(data.survey_metadata.location_id);

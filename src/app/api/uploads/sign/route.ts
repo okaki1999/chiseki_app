@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
       token: data.token,
       publicUrl,
     });
-  } catch {
+  } catch (error) {
+    console.error("/api/uploads/sign failed", error);
     return NextResponse.json(
       { error: "サーバーエラーが発生しました" },
       { status: 500 },
