@@ -18,7 +18,7 @@ type UploadedFile = {
   storagePath: string;
 };
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 8_000_000;
 
 const readJsonResponse = async <T,>(res: Response): Promise<T> => {
   const text = await res.text();
