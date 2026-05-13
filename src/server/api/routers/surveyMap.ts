@@ -6,7 +6,8 @@ import { canDeleteSurveyMap, canWriteSurveyMap } from "~/server/auth";
 import { recordActivity } from "~/server/activity";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { env } from "~/env";
-import { getSupabase, STORAGE_BUCKET } from "~/lib/supabase";
+import { getSupabase } from "~/lib/supabase";
+import { STORAGE_BUCKET } from "~/lib/storage";
 
 const isSupabaseConfigured = () =>
   Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY);
@@ -47,22 +48,44 @@ async function deleteImage(imageUrl: string): Promise<void> {
     return;
   }
   if (isSupabaseConfigured()) {
-    const filename = imageUrl.split("/").pop();
-    if (filename) {
-      await getSupabase().storage.from(STORAGE_BUCKET).remove([filename]);
+    const storagePath = getStoragePathFromPublicUrl(imageUrl);
+    if (storagePath) {
+      await getSupabase().storage.from(STORAGE_BUCKET).remove([storagePath]);
     }
+  }
+}
+
+function getPublicImageUrl(storagePath: string) {
+  return getSupabase().storage.from(STORAGE_BUCKET).getPublicUrl(storagePath)
+    .data.publicUrl;
+}
+
+function getStoragePathFromPublicUrl(imageUrl: string) {
+  try {
+    const url = new URL(imageUrl);
+    const marker = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
+    const index = url.pathname.indexOf(marker);
+    if (index === -1) return null;
+    return decodeURIComponent(url.pathname.slice(index + marker.length));
+  } catch {
+    return null;
   }
 }
 
 export const surveyMapRouter = createTRPCRouter({
   create: protectedProcedure
     .input(
-      z.object({
-        name: z.string().min(1),
-        imageBase64: z.string(),
-        imageMimeType: z.string(),
-        extractedData: z.unknown(),
-      }),
+      z
+        .object({
+          name: z.string().min(1),
+          imageBase64: z.string().optional(),
+          imageMimeType: z.string(),
+          imageStoragePath: z.string().optional(),
+          extractedData: z.unknown(),
+        })
+        .refine((value) => value.imageBase64 ?? value.imageStoragePath, {
+          message: "画像ファイルが指定されていません",
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       if (!canWriteSurveyMap(ctx.session.role)) {
@@ -71,11 +94,21 @@ export const surveyMapRouter = createTRPCRouter({
           message: "保存権限がありません",
         });
       }
+      if (
+        input.imageStoragePath &&
+        !input.imageStoragePath.startsWith(
+          `extracts/${ctx.session.tenant.id}/${ctx.session.user.id}/`,
+        )
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "アップロードファイルにアクセスできません",
+        });
+      }
 
-      const imageUrl = await uploadImage(
-        input.imageBase64,
-        input.imageMimeType,
-      );
+      const imageUrl = input.imageStoragePath
+        ? getPublicImageUrl(input.imageStoragePath)
+        : await uploadImage(input.imageBase64!, input.imageMimeType);
       const record = await ctx.db.surveyMap.create({
         data: {
           tenantId: ctx.session.tenant.id,

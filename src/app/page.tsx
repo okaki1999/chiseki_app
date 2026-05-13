@@ -5,12 +5,23 @@ import Image from "next/image";
 import { api } from "~/trpc/react";
 import { type SurveyData } from "~/lib/dxf";
 import { getAuthHeaders } from "~/lib/auth-headers";
+import {
+  getSupabaseBrowser,
+  isSupabaseAuthConfigured,
+} from "~/lib/supabase-browser";
+import { STORAGE_BUCKET } from "~/lib/storage";
 import { SurveyResult } from "~/app/_components/SurveyResult";
 import { AppHeader } from "~/app/_components/AppHeader";
+
+type UploadedFile = {
+  imageUrl: string;
+  storagePath: string;
+};
 
 export default function Home() {
   const utils = api.useUtils();
   const [preview, setPreview] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState("image/jpeg");
   const [fileName, setFileName] = useState("");
@@ -20,6 +31,7 @@ export default function Home() {
   const [saveName, setSaveName] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
 
   const saveMap = api.surveyMap.create.useMutation({
     onSuccess: () => {
@@ -36,6 +48,7 @@ export default function Home() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setFile(f);
     const selectedMimeType =
       f.type ||
       (f.name.toLowerCase().endsWith(".pdf")
@@ -54,14 +67,61 @@ export default function Home() {
     setError(null);
     setSaved(false);
     setSaveName("");
+    setUploadedFile(null);
+  };
+
+  const uploadFileToStorage = async (selectedFile: File) => {
+    const headers = Object.fromEntries(await getAuthHeaders()) as Record<
+      string,
+      string
+    >;
+    const signRes = await fetch("/api/uploads/sign", {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ mimeType }),
+    });
+    const signed = (await signRes.json()) as {
+      path?: string;
+      token?: string;
+      publicUrl?: string;
+      error?: string;
+    };
+    if (!signRes.ok || !signed.path || !signed.token || !signed.publicUrl) {
+      throw new Error(signed.error ?? "アップロードURLの作成に失敗しました");
+    }
+
+    const uploadResult = (await getSupabaseBrowser()
+      .storage.from(STORAGE_BUCKET)
+      .uploadToSignedUrl(signed.path, signed.token, selectedFile)) as {
+      error: { message: string } | null;
+    };
+    if (uploadResult.error) {
+      throw new Error(
+        `アップロードに失敗しました: ${uploadResult.error.message}`,
+      );
+    }
+
+    const uploaded = {
+      imageUrl: signed.publicUrl,
+      storagePath: signed.path,
+    };
+    setUploadedFile(uploaded);
+    return uploaded;
   };
 
   const handleExtract = async () => {
-    if (!imageBase64) return;
+    if (!file && !imageBase64) return;
     setLoading(true);
     setError(null);
     setSaved(false);
     try {
+      const uploaded =
+        file && isSupabaseAuthConfigured()
+          ? (uploadedFile ?? (await uploadFileToStorage(file)))
+          : null;
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: {
@@ -71,7 +131,11 @@ export default function Home() {
           >),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ base64: imageBase64, mimeType }),
+        body: JSON.stringify(
+          uploaded
+            ? { storagePath: uploaded.storagePath, mimeType }
+            : { base64: imageBase64, mimeType },
+        ),
       });
       const data = (await res.json()) as SurveyData & { error?: string };
       if (!res.ok) throw new Error(data.error ?? "解析に失敗しました");
@@ -86,10 +150,12 @@ export default function Home() {
   };
 
   const handleSave = () => {
-    if (!result || !imageBase64) return;
+    if (!result || (!uploadedFile && !imageBase64)) return;
     saveMap.mutate({
       name: saveName,
-      imageBase64,
+      ...(uploadedFile
+        ? { imageStoragePath: uploadedFile.storagePath }
+        : { imageBase64: imageBase64 ?? undefined }),
       imageMimeType: mimeType,
       extractedData: result,
     });
