@@ -24,6 +24,7 @@ const formatDate = (date: Date) =>
 type EditingTenant = {
   id: string;
   name: string;
+  usageLimit: string;
 };
 
 type EditingMember = {
@@ -38,6 +39,17 @@ type EditingMember = {
 const parseUsageLimit = (value: string) =>
   value.trim() === "" ? null : Number(value);
 
+const formatUsageLimit = (value: number | null) =>
+  value === null ? "無制限" : value.toLocaleString("ja-JP");
+
+const getAllocatedUsageLimit = (tenant: {
+  members: { user: { usageLimit: number | null } }[];
+}) =>
+  tenant.members.reduce(
+    (total, member) => total + (member.user.usageLimit ?? 0),
+    0,
+  );
+
 export default function AdminPage() {
   const utils = api.useUtils();
   const { data, isLoading, error } = api.admin.overview.useQuery();
@@ -45,6 +57,7 @@ export default function AdminPage() {
     useState<(typeof tabs)[number]>("テナント管理");
   const [message, setMessage] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState("");
+  const [tenantUsageLimit, setTenantUsageLimit] = useState("");
   const [editingTenant, setEditingTenant] = useState<EditingTenant | null>(
     null,
   );
@@ -67,6 +80,7 @@ export default function AdminPage() {
   const createTenant = api.admin.createTenant.useMutation({
     onSuccess: async () => {
       setTenantName("");
+      setTenantUsageLimit("");
       setMessage("テナントを追加しました");
       await refresh();
     },
@@ -125,6 +139,16 @@ export default function AdminPage() {
 
   const defaultTenantId = data?.tenants[0]?.id ?? "";
   const selectedTenantId = newUser.tenantId || defaultTenantId;
+  const selectedTenant = data?.tenants.find(
+    (tenant) => tenant.id === selectedTenantId,
+  );
+  const selectedTenantAllocated = selectedTenant
+    ? getAllocatedUsageLimit(selectedTenant)
+    : 0;
+  const selectedTenantRemaining =
+    selectedTenant?.usageLimit === null || selectedTenant === undefined
+      ? null
+      : selectedTenant.usageLimit - selectedTenantAllocated;
   const userRows =
     data?.tenants.flatMap((tenant) =>
       tenant.members.map((member) => ({ tenant, member })),
@@ -192,10 +216,21 @@ export default function AdminPage() {
                         placeholder="テナント名"
                         className="min-w-72 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
                       />
+                      <input
+                        value={tenantUsageLimit}
+                        onChange={(e) => setTenantUsageLimit(e.target.value)}
+                        placeholder="最大実行回数 空なら無制限"
+                        type="number"
+                        min={0}
+                        className="min-w-56 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                      />
                       <button
                         type="button"
                         onClick={() =>
-                          createTenant.mutate({ name: tenantName })
+                          createTenant.mutate({
+                            name: tenantName,
+                            usageLimit: parseUsageLimit(tenantUsageLimit),
+                          })
                         }
                         disabled={createTenant.isPending || !tenantName.trim()}
                         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
@@ -223,6 +258,7 @@ export default function AdminPage() {
                             <th className="pr-4 pb-2 text-right font-normal">
                               利用
                             </th>
+                            <th className="pr-4 pb-2 font-normal">実行枠</th>
                             <th className="pr-4 pb-2 font-normal">作成日</th>
                             <th className="pb-2 font-normal">操作</th>
                           </tr>
@@ -230,6 +266,15 @@ export default function AdminPage() {
                         <tbody>
                           {data.tenants.map((tenant) => {
                             const isEditing = editingTenant?.id === tenant.id;
+                            const allocated = getAllocatedUsageLimit(tenant);
+                            const remaining =
+                              tenant.usageLimit === null
+                                ? null
+                                : tenant.usageLimit - allocated;
+                            const remainingLabel =
+                              remaining === null
+                                ? "無制限"
+                                : remaining.toLocaleString("ja-JP");
                             return (
                               <tr
                                 key={tenant.id}
@@ -237,20 +282,39 @@ export default function AdminPage() {
                               >
                                 <td className="py-3 pr-4">
                                   {isEditing ? (
-                                    <input
-                                      value={editingTenant.name}
-                                      onChange={(e) =>
-                                        setEditingTenant((prev) =>
-                                          prev
-                                            ? {
-                                                ...prev,
-                                                name: e.target.value,
-                                              }
-                                            : prev,
-                                        )
-                                      }
-                                      className="w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                                    />
+                                    <div className="flex flex-wrap gap-2">
+                                      <input
+                                        value={editingTenant.name}
+                                        onChange={(e) =>
+                                          setEditingTenant((prev) =>
+                                            prev
+                                              ? {
+                                                  ...prev,
+                                                  name: e.target.value,
+                                                }
+                                              : prev,
+                                          )
+                                        }
+                                        className="w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                                      />
+                                      <input
+                                        value={editingTenant.usageLimit}
+                                        onChange={(e) =>
+                                          setEditingTenant((prev) =>
+                                            prev
+                                              ? {
+                                                  ...prev,
+                                                  usageLimit: e.target.value,
+                                                }
+                                              : prev,
+                                          )
+                                        }
+                                        placeholder="無制限"
+                                        type="number"
+                                        min={0}
+                                        className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                                      />
+                                    </div>
                                   ) : (
                                     <span className="font-medium text-gray-800">
                                       {tenant.name}
@@ -266,6 +330,21 @@ export default function AdminPage() {
                                 <td className="py-3 pr-4 text-right text-gray-600">
                                   {tenant._count.usageEvents}
                                 </td>
+                                <td className="py-3 pr-4 text-gray-600">
+                                  {tenant.usageLimit === null ? (
+                                    "無制限"
+                                  ) : (
+                                    <span>
+                                      {allocated.toLocaleString("ja-JP")} /{" "}
+                                      {tenant.usageLimit.toLocaleString(
+                                        "ja-JP",
+                                      )}
+                                      <span className="ml-2 text-xs text-gray-400">
+                                        残 {remainingLabel}
+                                      </span>
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="py-3 pr-4 text-gray-500">
                                   {formatDate(tenant.createdAt)}
                                 </td>
@@ -279,6 +358,9 @@ export default function AdminPage() {
                                             updateTenant.mutate({
                                               tenantId: editingTenant.id,
                                               name: editingTenant.name,
+                                              usageLimit: parseUsageLimit(
+                                                editingTenant.usageLimit,
+                                              ),
                                             })
                                           }
                                           className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white"
@@ -301,6 +383,10 @@ export default function AdminPage() {
                                             setEditingTenant({
                                               id: tenant.id,
                                               name: tenant.name,
+                                              usageLimit:
+                                                tenant.usageLimit === null
+                                                  ? ""
+                                                  : String(tenant.usageLimit),
                                             })
                                           }
                                           className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
@@ -341,9 +427,25 @@ export default function AdminPage() {
               {activeTab === "ユーザー管理" && (
                 <>
                   <section className="rounded-xl bg-white p-6 shadow-sm">
-                    <h2 className="mb-4 text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                      ユーザー登録
-                    </h2>
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <h2 className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
+                        ユーザー登録
+                      </h2>
+                      {selectedTenant && (
+                        <span className="text-sm text-gray-500">
+                          実行枠{" "}
+                          {selectedTenant.usageLimit === null
+                            ? "無制限"
+                            : `${selectedTenantAllocated.toLocaleString(
+                                "ja-JP",
+                              )} / ${selectedTenant.usageLimit.toLocaleString(
+                                "ja-JP",
+                              )}（未割当 ${selectedTenantRemaining?.toLocaleString(
+                                "ja-JP",
+                              )}）`}
+                        </span>
+                      )}
+                    </div>
                     <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_8rem_auto_auto_auto]">
                       <select
                         value={selectedTenantId}
@@ -571,7 +673,7 @@ export default function AdminPage() {
                                     />
                                   ) : (
                                     <span className="text-gray-600">
-                                      {member.user.usageLimit ?? "無制限"}
+                                      {formatUsageLimit(member.user.usageLimit)}
                                     </span>
                                   )}
                                 </td>

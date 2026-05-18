@@ -4,6 +4,7 @@ import { z } from "zod";
 import { canManageTenant } from "~/server/auth";
 import { recordActivity } from "~/server/activity";
 import {
+  assertTenantUsageAllocation,
   attachUserToTenant,
   createAuthBackedUser,
   updateAuthBackedUser,
@@ -94,6 +95,16 @@ export const tenantRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       requireTenantAdmin(ctx.session.role);
 
+      const existingUser = await ctx.db.user.findUnique({
+        where: { email: input.email },
+        select: { id: true },
+      });
+      await assertTenantUsageAllocation(ctx.db, {
+        tenantId: ctx.session.tenant.id,
+        nextUsageLimit: input.usageLimit ?? null,
+        userId: existingUser?.id,
+      });
+
       const user = await createAuthBackedUser(ctx.db, {
         email: input.email,
         password: input.password,
@@ -145,6 +156,12 @@ export const tenantRouter = createTRPCRouter({
           message: "メンバーが見つかりません",
         });
       }
+
+      await assertTenantUsageAllocation(ctx.db, {
+        tenantId: ctx.session.tenant.id,
+        nextUsageLimit: input.usageLimit ?? null,
+        memberId: member.id,
+      });
 
       const user = await updateAuthBackedUser(ctx.db, member.userId, {
         email: input.email,

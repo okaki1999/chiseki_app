@@ -4,6 +4,8 @@ import { z } from "zod";
 import { isSuperAdmin } from "~/server/auth";
 import { recordActivity } from "~/server/activity";
 import {
+  assertTenantLimitCanCoverAllocation,
+  assertTenantUsageAllocation,
   attachUserToTenant,
   createAuthBackedUser,
   updateAuthBackedUser,
@@ -74,12 +76,17 @@ export const adminRouter = createTRPCRouter({
   }),
 
   createTenant: protectedProcedure
-    .input(z.object({ name: z.string().min(1).max(80) }))
+    .input(
+      z.object({
+        name: z.string().min(1).max(80),
+        usageLimit: usageLimitSchema,
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       requireSuperAdmin(ctx.session.role);
 
       const tenant = await ctx.db.tenant.create({
-        data: { name: input.name },
+        data: { name: input.name, usageLimit: input.usageLimit ?? null },
       });
 
       await recordActivity({
@@ -87,20 +94,31 @@ export const adminRouter = createTRPCRouter({
         action: "admin.tenant_create",
         targetType: "tenant",
         targetId: tenant.id,
-        metadata: { name: tenant.name },
+        metadata: { name: tenant.name, usageLimit: tenant.usageLimit },
       });
 
       return tenant;
     }),
 
   updateTenant: protectedProcedure
-    .input(z.object({ tenantId: z.string(), name: z.string().min(1).max(80) }))
+    .input(
+      z.object({
+        tenantId: z.string(),
+        name: z.string().min(1).max(80),
+        usageLimit: usageLimitSchema,
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       requireSuperAdmin(ctx.session.role);
 
+      await assertTenantLimitCanCoverAllocation(ctx.db, {
+        tenantId: input.tenantId,
+        nextTenantUsageLimit: input.usageLimit ?? null,
+      });
+
       const tenant = await ctx.db.tenant.update({
         where: { id: input.tenantId },
-        data: { name: input.name },
+        data: { name: input.name, usageLimit: input.usageLimit ?? null },
       });
 
       await recordActivity({
@@ -108,7 +126,7 @@ export const adminRouter = createTRPCRouter({
         action: "admin.tenant_update",
         targetType: "tenant",
         targetId: tenant.id,
-        metadata: { name: tenant.name },
+        metadata: { name: tenant.name, usageLimit: tenant.usageLimit },
       });
 
       return tenant;
@@ -163,6 +181,16 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       requireSuperAdmin(ctx.session.role);
 
+      const existingUser = await ctx.db.user.findUnique({
+        where: { email: input.email },
+        select: { id: true },
+      });
+      await assertTenantUsageAllocation(ctx.db, {
+        tenantId: input.tenantId,
+        nextUsageLimit: input.usageLimit ?? null,
+        userId: existingUser?.id,
+      });
+
       const user = await createAuthBackedUser(ctx.db, {
         email: input.email,
         password: input.password,
@@ -216,6 +244,12 @@ export const adminRouter = createTRPCRouter({
           message: "メンバーが見つかりません",
         });
       }
+
+      await assertTenantUsageAllocation(ctx.db, {
+        tenantId: member.tenantId,
+        nextUsageLimit: input.usageLimit ?? null,
+        memberId: member.id,
+      });
 
       const user = await updateAuthBackedUser(ctx.db, member.userId, {
         email: input.email,

@@ -26,6 +26,14 @@ type EditingMember = {
 const parseUsageLimit = (value: string) =>
   value.trim() === "" ? null : Number(value);
 
+const getAllocatedUsageLimit = (tenant: {
+  members: { user: { usageLimit: number | null } }[];
+}) =>
+  tenant.members.reduce(
+    (total, member) => total + (member.user.usageLimit ?? 0),
+    0,
+  );
+
 export default function SettingsPage() {
   const utils = api.useUtils();
   const { data, isLoading, error } = api.tenant.current.useQuery();
@@ -79,6 +87,11 @@ export default function SettingsPage() {
   });
 
   const tenant = data?.tenant;
+  const allocatedUsageLimit = tenant ? getAllocatedUsageLimit(tenant) : 0;
+  const remainingUsageLimit =
+    tenant?.usageLimit === null || tenant === undefined
+      ? null
+      : tenant.usageLimit - allocatedUsageLimit;
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
@@ -125,6 +138,30 @@ export default function SettingsPage() {
                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
                   あなた: {roleLabel[data.role]}
                 </span>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg bg-gray-50 px-4 py-3">
+                  <p className="text-xs text-gray-400">最大実行回数</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">
+                    {tenant.usageLimit === null
+                      ? "無制限"
+                      : tenant.usageLimit.toLocaleString("ja-JP")}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-4 py-3">
+                  <p className="text-xs text-gray-400">割当済み</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">
+                    {allocatedUsageLimit.toLocaleString("ja-JP")}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-4 py-3">
+                  <p className="text-xs text-gray-400">未割当</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">
+                    {remainingUsageLimit === null
+                      ? "無制限"
+                      : remainingUsageLimit.toLocaleString("ja-JP")}
+                  </p>
+                </div>
               </div>
             </section>
 
