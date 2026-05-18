@@ -64,7 +64,6 @@ export default function HistoryDetailPage({
         <AppHeader
           title={record.name}
           subtitle={`保存日: ${new Date(record.createdAt).toLocaleDateString("ja-JP")}`}
-          actions={[{ href: "/history", label: "履歴" }]}
         />
 
         {updateMap.isError && (

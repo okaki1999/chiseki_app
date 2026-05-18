@@ -193,7 +193,6 @@ export default function Home() {
         <AppHeader
           title="地積測量図 OCR 解析"
           actions={[
-            { href: "/history", label: "履歴" },
             ...(result && !saved
               ? [
                   {

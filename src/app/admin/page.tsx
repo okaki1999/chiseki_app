@@ -161,7 +161,6 @@ export default function AdminPage() {
           title="全管理"
           subtitle="テナント、ユーザー、監査ログを管理"
           maxWidth="max-w-7xl"
-          actions={[{ href: "/", label: "新規解析" }]}
         />
 
         {isLoading && (

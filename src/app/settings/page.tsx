@@ -100,10 +100,6 @@ export default function SettingsPage() {
           title="テナント管理"
           subtitle="自テナントに紐づくユーザーを管理"
           maxWidth="max-w-5xl"
-          actions={[
-            { href: "/", label: "新規解析" },
-            { href: "/history", label: "履歴" },
-          ]}
         />
 
         {isLoading && (

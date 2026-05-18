@@ -54,10 +54,7 @@ export default function HistoryPage() {
   return (
     <main className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="mx-auto max-w-4xl">
-        <AppHeader
-          title="解析履歴"
-          actions={[{ href: "/", label: "新規解析", variant: "primary" }]}
-        />
+        <AppHeader title="解析履歴" />
 
         {/* 一覧 */}
         {isLoading && (
