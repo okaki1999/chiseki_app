@@ -4,18 +4,14 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "~/trpc/react";
-import { type SurveyData } from "~/lib/dxf";
 import { getAuthHeaders } from "~/lib/auth-headers";
 import { AppHeader } from "~/app/_components/AppHeader";
-import {
-  hasAnyUsableCoordinates,
-  isCoordinateBasedSurvey,
-} from "~/lib/survey-validation";
 
 const isPdfUrl = (url: string) =>
   url.split("?")[0]?.toLowerCase().endsWith(".pdf") ?? false;
 
 export default function HistoryPage() {
+  const utils = api.useUtils();
   const { data: records, isLoading, refetch } = api.surveyMap.list.useQuery();
   const deleteMap = api.surveyMap.delete.useMutation({
     onSuccess: () => refetch(),
@@ -24,12 +20,14 @@ export default function HistoryPage() {
 
   const handleExportFile = async (
     id: string,
-    extractedData: unknown,
     locationId: string,
     format: "dxf" | "csv" | "xlsx" | "sima",
   ) => {
     setExportingId(`${id}-${format}`);
     try {
+      const record = await utils.surveyMap.getById.fetch({ id });
+      if (!record) throw new Error("レコードが見つかりません");
+
       const res = await fetch(`/api/export-${format}`, {
         method: "POST",
         headers: {
@@ -39,7 +37,7 @@ export default function HistoryPage() {
           >),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(extractedData),
+        body: JSON.stringify(record.extractedData),
       });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -100,13 +98,8 @@ export default function HistoryPage() {
 
         <div className="space-y-3">
           {records?.map((record: (typeof records)[number]) => {
-            const data = record.extractedData as SurveyData;
-            const totalArea = data.parcels
-              .reduce((sum, p) => sum + p.area_m2, 0)
-              .toFixed(2);
+            const totalArea = record.totalArea.toFixed(2);
             const date = new Date(record.createdAt).toLocaleDateString("ja-JP");
-            const canExportSpatial =
-              hasAnyUsableCoordinates(data) && isCoordinateBasedSurvey(data);
 
             return (
               <div
@@ -161,13 +154,11 @@ export default function HistoryPage() {
                   <p className="truncate font-semibold text-gray-800">
                     {record.name}
                   </p>
-                  <p className="text-sm text-gray-500">
-                    {data.survey_metadata.location_id}
-                  </p>
+                  <p className="text-sm text-gray-500">{record.locationId}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400">
                     <span>{totalArea} ㎡</span>
                     <span>·</span>
-                    <span>{data.survey_metadata.survey_date}</span>
+                    <span>{record.surveyDate}</span>
                     <span>·</span>
                     <span>保存日: {date}</span>
                   </div>
@@ -202,19 +193,15 @@ export default function HistoryPage() {
                   {/* DXF出力 */}
                   <button
                     onClick={() =>
-                      handleExportFile(
-                        record.id,
-                        record.extractedData,
-                        data.survey_metadata.location_id,
-                        "dxf",
-                      )
+                      handleExportFile(record.id, record.locationId, "dxf")
                     }
                     disabled={
-                      exportingId === `${record.id}-dxf` || !canExportSpatial
+                      exportingId === `${record.id}-dxf` ||
+                      !record.canExportSpatial
                     }
                     className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                     title={
-                      canExportSpatial
+                      record.canExportSpatial
                         ? "DXFを出力"
                         : "三斜/残地求積はDXF出力の対象外です"
                     }
@@ -224,12 +211,7 @@ export default function HistoryPage() {
 
                   <button
                     onClick={() =>
-                      handleExportFile(
-                        record.id,
-                        record.extractedData,
-                        data.survey_metadata.location_id,
-                        "csv",
-                      )
+                      handleExportFile(record.id, record.locationId, "csv")
                     }
                     disabled={exportingId === `${record.id}-csv`}
                     className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
@@ -240,12 +222,7 @@ export default function HistoryPage() {
 
                   <button
                     onClick={() =>
-                      handleExportFile(
-                        record.id,
-                        record.extractedData,
-                        data.survey_metadata.location_id,
-                        "xlsx",
-                      )
+                      handleExportFile(record.id, record.locationId, "xlsx")
                     }
                     disabled={exportingId === `${record.id}-xlsx`}
                     className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
@@ -256,19 +233,15 @@ export default function HistoryPage() {
 
                   <button
                     onClick={() =>
-                      handleExportFile(
-                        record.id,
-                        record.extractedData,
-                        data.survey_metadata.location_id,
-                        "sima",
-                      )
+                      handleExportFile(record.id, record.locationId, "sima")
                     }
                     disabled={
-                      exportingId === `${record.id}-sima` || !canExportSpatial
+                      exportingId === `${record.id}-sima` ||
+                      !record.canExportSpatial
                     }
                     className="rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                     title={
-                      canExportSpatial
+                      record.canExportSpatial
                         ? "SIMAを出力"
                         : "三斜/残地求積はSIMA出力の対象外です"
                     }

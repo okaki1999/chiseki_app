@@ -33,44 +33,66 @@ export const adminRouter = createTRPCRouter({
   overview: protectedProcedure.query(async ({ ctx }) => {
     requireSuperAdmin(ctx.session.role);
 
-    const [tenants, usersCount, usageByAction, recentAuditLogs] =
-      await Promise.all([
-        ctx.db.tenant.findMany({
-          orderBy: { createdAt: "desc" },
-          include: {
-            members: {
-              include: { user: true },
-              orderBy: [{ role: "asc" }, { createdAt: "asc" }],
-            },
-            _count: {
-              select: {
-                members: true,
-                surveyMaps: true,
-                usageEvents: true,
+    const [tenants, recentAuditLogs] = await Promise.all([
+      ctx.db.tenant.findMany({
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          usageLimit: true,
+          createdAt: true,
+          updatedAt: true,
+          members: {
+            select: {
+              id: true,
+              tenantId: true,
+              userId: true,
+              role: true,
+              createdAt: true,
+              updatedAt: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  usageLimit: true,
+                },
               },
             },
+            orderBy: [{ role: "asc" }, { createdAt: "asc" }],
           },
-        }),
-        ctx.db.user.count(),
-        ctx.db.usageEvent.groupBy({
-          by: ["action"],
-          _count: { _all: true },
-          orderBy: { action: "asc" },
-        }),
-        ctx.db.auditLog.findMany({
-          orderBy: { createdAt: "desc" },
-          take: 30,
-          include: {
-            tenant: true,
-            user: true,
+          _count: {
+            select: {
+              members: true,
+              surveyMaps: true,
+              usageEvents: true,
+            },
           },
-        }),
-      ]);
+        },
+      }),
+      ctx.db.auditLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: {
+          id: true,
+          action: true,
+          createdAt: true,
+          tenant: {
+            select: {
+              name: true,
+            },
+          },
+          user: {
+            select: {
+              email: true,
+            },
+          },
+        },
+      }),
+    ]);
 
     return {
       tenants,
-      usersCount,
-      usageByAction,
       recentAuditLogs,
     };
   }),

@@ -31,11 +31,7 @@ export const tenantRouter = createTRPCRouter({
   })),
 
   usageStatus: protectedProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.user.findUnique({
-      where: { id: ctx.session.user.id },
-      select: { usageLimit: true },
-    });
-    const remaining = user?.usageLimit ?? null;
+    const remaining = ctx.session.user.usageLimit;
 
     return {
       remaining,
@@ -46,9 +42,29 @@ export const tenantRouter = createTRPCRouter({
   current: protectedProcedure.query(async ({ ctx }) => {
     const tenant = await ctx.db.tenant.findUnique({
       where: { id: ctx.session.tenant.id },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        usageLimit: true,
+        createdAt: true,
+        updatedAt: true,
         members: {
-          include: { user: true },
+          select: {
+            id: true,
+            tenantId: true,
+            userId: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                usageLimit: true,
+              },
+            },
+          },
           orderBy: [{ role: "asc" }, { createdAt: "asc" }],
         },
         _count: {
@@ -67,18 +83,10 @@ export const tenantRouter = createTRPCRouter({
       });
     }
 
-    const usageByAction = await ctx.db.usageEvent.groupBy({
-      by: ["action"],
-      where: { tenantId: tenant.id },
-      _count: { _all: true },
-      orderBy: { action: "asc" },
-    });
-
     return {
       tenant,
       role: ctx.session.role,
       currentUserId: ctx.session.user.id,
-      usageByAction,
     };
   }),
 

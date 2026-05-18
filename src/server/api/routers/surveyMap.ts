@@ -8,6 +8,11 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { env } from "~/env";
 import { getSupabase } from "~/lib/supabase";
 import { STORAGE_BUCKET } from "~/lib/storage";
+import { type SurveyData } from "~/lib/dxf";
+import {
+  hasAnyUsableCoordinates,
+  isCoordinateBasedSurvey,
+} from "~/lib/survey-validation";
 
 const isSupabaseConfigured = () =>
   Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY);
@@ -144,7 +149,7 @@ export const surveyMapRouter = createTRPCRouter({
     }),
 
   list: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db.surveyMap.findMany({
+    const records = await ctx.db.surveyMap.findMany({
       where:
         ctx.session.role === "SUPER_ADMIN"
           ? undefined
@@ -157,6 +162,26 @@ export const surveyMapRouter = createTRPCRouter({
         extractedData: true,
         createdAt: true,
       },
+    });
+
+    return records.map((record) => {
+      const data = record.extractedData as SurveyData;
+      const totalArea = data.parcels.reduce(
+        (sum, parcel) => sum + parcel.area_m2,
+        0,
+      );
+
+      return {
+        id: record.id,
+        name: record.name,
+        imageUrl: record.imageUrl,
+        createdAt: record.createdAt,
+        locationId: data.survey_metadata.location_id,
+        surveyDate: data.survey_metadata.survey_date,
+        totalArea,
+        canExportSpatial:
+          hasAnyUsableCoordinates(data) && isCoordinateBasedSurvey(data),
+      };
     });
   }),
 
